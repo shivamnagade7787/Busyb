@@ -8,7 +8,7 @@ import { Plus, Search, Edit2, Trash2, X } from 'lucide-react';
 import ConfirmModal from '../components/ConfirmModal';
 
 export default function Inventory() {
-  const { user } = useAuth();
+  const { user, activeBusiness } = useAuth();
   const [products, setProducts] = useState<any[]>([]);
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -28,10 +28,10 @@ export default function Inventory() {
     if (!user) return;
     const q = query(collection(db, 'products'), where('userId', '==', user.uid));
     const unsub = onSnapshot(q, (snapshot) => {
-      setProducts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setProducts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter((d: any) => (d.businessId || 'Business 1') === activeBusiness));
     });
     return () => unsub();
-  }, [user]);
+  }, [user, activeBusiness]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,6 +39,7 @@ export default function Inventory() {
 
     const data = {
       userId: user.uid,
+      businessId: activeBusiness,
       name: formData.name,
       category: formData.category,
       purchasePrice: Number(formData.purchasePrice),

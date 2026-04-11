@@ -8,7 +8,7 @@ import { Plus, Search, Edit2, Trash2, X } from 'lucide-react';
 import ConfirmModal from '../components/ConfirmModal';
 
 export default function Expenses() {
-  const { user } = useAuth();
+  const { user, activeBusiness } = useAuth();
   const [expenses, setExpenses] = useState<any[]>([]);
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -28,10 +28,12 @@ export default function Expenses() {
     if (!user) return;
     const q = query(collection(db, 'expenses'), where('userId', '==', user.uid));
     const unsub = onSnapshot(q, (snapshot) => {
-      setExpenses(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+      setExpenses(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+        .filter((d: any) => (d.businessId || 'Business 1') === activeBusiness)
+        .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()));
     });
     return () => unsub();
-  }, [user]);
+  }, [user, activeBusiness]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,6 +41,7 @@ export default function Expenses() {
 
     const data = {
       userId: user.uid,
+      businessId: activeBusiness,
       category: formData.category,
       amount: Number(formData.amount),
       paymentMode: formData.paymentMode,

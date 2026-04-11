@@ -10,7 +10,7 @@ import 'jspdf-autotable';
 import ConfirmModal from '../components/ConfirmModal';
 
 export default function Sales() {
-  const { user } = useAuth();
+  const { user, activeBusiness } = useAuth();
   const [sales, setSales] = useState<any[]>([]);
   const [parties, setParties] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
@@ -31,19 +31,23 @@ export default function Sales() {
     if (!user) return;
     
     const unsubSales = onSnapshot(query(collection(db, 'sales'), where('userId', '==', user.uid)), (snapshot) => {
-      setSales(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+      setSales(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+        .filter((d: any) => (d.businessId || 'Business 1') === activeBusiness)
+        .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()));
     });
 
     const unsubParties = onSnapshot(query(collection(db, 'parties'), where('userId', '==', user.uid)), (snapshot) => {
-      setParties(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setParties(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+        .filter((d: any) => (d.businessId || 'Business 1') === activeBusiness));
     });
 
     const unsubProducts = onSnapshot(query(collection(db, 'products'), where('userId', '==', user.uid)), (snapshot) => {
-      setProducts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setProducts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+        .filter((d: any) => (d.businessId || 'Business 1') === activeBusiness));
     });
 
     return () => { unsubSales(); unsubParties(); unsubProducts(); };
-  }, [user]);
+  }, [user, activeBusiness]);
 
   const handleAddItem = () => {
     setItems([...items, { productId: '', quantity: 1, price: 0 }]);
@@ -88,6 +92,7 @@ export default function Sales() {
     
     const saleData = {
       userId: user.uid,
+      businessId: activeBusiness,
       partyId: formData.partyId,
       partyName: party?.name || 'Walk-in Customer',
       totalAmount,

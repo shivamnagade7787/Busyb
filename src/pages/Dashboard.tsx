@@ -8,7 +8,7 @@ import { startOfDay, endOfDay } from 'date-fns';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 export default function Dashboard() {
-  const { user } = useAuth();
+  const { user, activeBusiness } = useAuth();
   const [stats, setStats] = useState({
     todaySales: 0,
     todayExpenses: 0,
@@ -39,6 +39,8 @@ export default function Dashboard() {
 
       snapshot.docs.forEach(doc => {
         const data = doc.data();
+        if ((data.businessId || 'Business 1') !== activeBusiness) return;
+        
         if (data.date >= todayStart && data.date <= todayEnd) {
           todayTotal += data.finalAmount;
           if (data.paymentMode === 'cash') cash += data.finalAmount;
@@ -66,6 +68,8 @@ export default function Dashboard() {
 
       snapshot.docs.forEach(doc => {
         const data = doc.data();
+        if ((data.businessId || 'Business 1') !== activeBusiness) return;
+
         if (data.date >= todayStart && data.date <= todayEnd) {
           todayTotal += data.amount;
           if (data.paymentMode === 'cash') cash += data.amount;
@@ -85,6 +89,8 @@ export default function Dashboard() {
 
       snapshot.docs.forEach(doc => {
         const data = doc.data();
+        if ((data.businessId || 'Business 1') !== activeBusiness) return;
+
         if (data.date >= todayStart && data.date <= todayEnd) {
           const amount = data.type === 'in' ? data.amount : -data.amount;
           if (data.paymentMode === 'cash') cash += amount;
@@ -101,7 +107,10 @@ export default function Dashboard() {
       let rec = 0;
       let pay = 0;
       snapshot.docs.forEach(doc => {
-        const bal = doc.data().balance || 0;
+        const data = doc.data();
+        if ((data.businessId || 'Business 1') !== activeBusiness) return;
+        
+        const bal = data.balance || 0;
         if (bal > 0) rec += bal;
         if (bal < 0) pay += Math.abs(bal);
       });
@@ -114,6 +123,8 @@ export default function Dashboard() {
       const lowStock: any[] = [];
       snapshot.docs.forEach(doc => {
         const data = doc.data();
+        if ((data.businessId || 'Business 1') !== activeBusiness) return;
+
         if (data.stockQuantity <= (data.lowStockThreshold || 5)) {
           lowStock.push({ id: doc.id, ...data });
         }
@@ -128,7 +139,7 @@ export default function Dashboard() {
       unsubParties();
       unsubProd();
     };
-  }, [user]);
+  }, [user, activeBusiness]);
 
   const totalCashInHand = cashFlow.salesCash - cashFlow.expCash + cashFlow.payCash;
   const totalOnline = cashFlow.salesOnline - cashFlow.expOnline + cashFlow.payOnline;

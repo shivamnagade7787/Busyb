@@ -9,7 +9,7 @@ import 'jspdf-autotable';
 import { startOfMonth, endOfMonth, format } from 'date-fns';
 
 export default function Reports() {
-  const { user } = useAuth();
+  const { user, activeBusiness } = useAuth();
   const [loading, setLoading] = useState(false);
   const [reportType, setReportType] = useState('sales');
   const [dateRange, setDateRange] = useState('thisMonth');
@@ -19,7 +19,7 @@ export default function Reports() {
 
   useEffect(() => {
     fetchData();
-  }, [reportType, dateRange, user]);
+  }, [reportType, dateRange, user, activeBusiness]);
 
   const fetchData = async () => {
     if (!user) return;
@@ -51,7 +51,7 @@ export default function Reports() {
       );
       
       const snapshot = await getDocs(q);
-      const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter((d: any) => (d.businessId || 'Business 1') === activeBusiness);
       
       setData(docs);
       

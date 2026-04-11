@@ -8,7 +8,7 @@ import { Plus, Search, Edit2, Trash2, X, ArrowUpRight, ArrowDownRight, IndianRup
 import ConfirmModal from '../components/ConfirmModal';
 
 export default function Parties() {
-  const { user } = useAuth();
+  const { user, activeBusiness } = useAuth();
   const [parties, setParties] = useState<any[]>([]);
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -36,10 +36,10 @@ export default function Parties() {
     if (!user) return;
     const q = query(collection(db, 'parties'), where('userId', '==', user.uid));
     const unsub = onSnapshot(q, (snapshot) => {
-      setParties(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setParties(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter((d: any) => (d.businessId || 'Business 1') === activeBusiness));
     });
     return () => unsub();
-  }, [user]);
+  }, [user, activeBusiness]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,6 +47,7 @@ export default function Parties() {
 
     const data = {
       userId: user.uid,
+      businessId: activeBusiness,
       name: formData.name,
       mobile: formData.mobile,
       address: formData.address,
@@ -90,6 +91,7 @@ export default function Parties() {
       const paymentRef = doc(collection(db, 'payments'));
       batch.set(paymentRef, {
         userId: user.uid,
+        businessId: activeBusiness,
         partyId: selectedParty.id,
         partyName: selectedParty.name,
         type: paymentData.type,
