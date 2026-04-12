@@ -1,19 +1,11 @@
 import React from 'react';
-import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { Home, ShoppingCart, Users, Package, FileText, LogOut, Wallet, Store, ChevronDown } from 'lucide-react';
-import { auth } from '../../lib/firebase';
-import { signOut } from 'firebase/auth';
+import { Outlet, NavLink } from 'react-router-dom';
+import { Home, ShoppingCart, Users, Package, FileText, Wallet, Store, ChevronDown } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../contexts/AuthContext';
 
 export default function Layout() {
-  const navigate = useNavigate();
   const { activeBusiness, setActiveBusiness } = useAuth();
-
-  const handleLogout = async () => {
-    await signOut(auth);
-    navigate('/login');
-  };
 
   const navItems = [
     { icon: Home, label: 'Home', path: '/' },
@@ -81,17 +73,6 @@ export default function Layout() {
             </NavLink>
           ))}
         </nav>
-        <div className="p-2 md:p-4 border-t border-gray-200 dark:border-gray-700">
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-3 p-2 md:p-3 w-full text-left text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors whitespace-nowrap overflow-hidden"
-          >
-            <div className="flex items-center justify-center w-5 h-5 md:w-6 md:h-6 shrink-0 mx-auto md:mx-0">
-              <LogOut className="w-4 h-4 md:w-5 md:h-5" />
-            </div>
-            <span className="opacity-0 group-hover:opacity-100 transition-opacity text-sm">Logout</span>
-          </button>
-        </div>
       </aside>
 
       {/* Main Content */}

@@ -6,8 +6,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import Layout from './components/layout/Layout';
-import ProtectedRoute from './components/ProtectedRoute';
-import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Sales from './pages/Sales';
 import Expenses from './pages/Expenses';
@@ -20,17 +18,13 @@ export default function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          <Route path="/login" element={<Login />} />
-          
-          <Route element={<ProtectedRoute />}>
-            <Route element={<Layout />}>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/sales" element={<Sales />} />
-              <Route path="/expenses" element={<Expenses />} />
-              <Route path="/inventory" element={<Inventory />} />
-              <Route path="/parties" element={<Parties />} />
-              <Route path="/reports" element={<Reports />} />
-            </Route>
+          <Route element={<Layout />}>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/sales" element={<Sales />} />
+            <Route path="/expenses" element={<Expenses />} />
+            <Route path="/inventory" element={<Inventory />} />
+            <Route path="/parties" element={<Parties />} />
+            <Route path="/reports" element={<Reports />} />
           </Route>
         </Routes>
       </BrowserRouter>
