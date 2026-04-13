@@ -12,3 +12,10 @@ export function formatCurrency(amount: number) {
     maximumFractionDigits: 2
   }).format(amount);
 }
+
+export function formatCurrencyForPDF(amount: number) {
+  return 'Rs. ' + amount.toLocaleString('en-IN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+}

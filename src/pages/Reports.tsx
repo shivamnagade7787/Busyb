@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { formatCurrency } from '../lib/utils';
 import { FileText, Download } from 'lucide-react';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import { startOfMonth, endOfMonth, format } from 'date-fns';
 
 export default function Reports() {
@@ -104,7 +104,7 @@ export default function Reports() {
       ]);
     }
 
-    (doc as any).autoTable({
+    autoTable(doc, {
       startY: 60,
       head,
       body,

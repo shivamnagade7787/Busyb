@@ -11,6 +11,7 @@ import Sales from './pages/Sales';
 import Expenses from './pages/Expenses';
 import Inventory from './pages/Inventory';
 import Parties from './pages/Parties';
+import Purchases from './pages/Purchases';
 import Reports from './pages/Reports';
 
 export default function App() {
@@ -24,6 +25,7 @@ export default function App() {
             <Route path="/expenses" element={<Expenses />} />
             <Route path="/inventory" element={<Inventory />} />
             <Route path="/parties" element={<Parties />} />
+            <Route path="/purchases" element={<Purchases />} />
             <Route path="/reports" element={<Reports />} />
           </Route>
         </Routes>

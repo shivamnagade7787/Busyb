@@ -21,7 +21,8 @@ export default function Inventory() {
     purchasePrice: '',
     sellingPrice: '',
     stockQuantity: '',
-    lowStockThreshold: '5'
+    lowStockThreshold: '5',
+    makingDate: ''
   });
 
   useEffect(() => {
@@ -46,6 +47,7 @@ export default function Inventory() {
       sellingPrice: Number(formData.sellingPrice),
       stockQuantity: Number(formData.stockQuantity),
       lowStockThreshold: Number(formData.lowStockThreshold),
+      makingDate: formData.makingDate,
       createdAt: editingItem ? editingItem.createdAt : new Date().toISOString()
     };
 
@@ -57,7 +59,7 @@ export default function Inventory() {
       }
       setIsModalOpen(false);
       setEditingItem(null);
-      setFormData({ name: '', category: '', purchasePrice: '', sellingPrice: '', stockQuantity: '', lowStockThreshold: '5' });
+      setFormData({ name: '', category: '', purchasePrice: '', sellingPrice: '', stockQuantity: '', lowStockThreshold: '5', makingDate: '' });
     } catch (error) {
       console.error('Error saving product:', error);
     }
@@ -108,6 +110,7 @@ export default function Inventory() {
               <tr className="bg-gray-50 dark:bg-gray-900/50 text-gray-500 dark:text-gray-400 text-sm">
                 <th className="p-4 font-medium">Product Name</th>
                 <th className="p-4 font-medium">Category</th>
+                <th className="p-4 font-medium">Making Date</th>
                 <th className="p-4 font-medium">Purchase Price</th>
                 <th className="p-4 font-medium">Selling Price</th>
                 <th className="p-4 font-medium">Stock</th>
@@ -119,6 +122,7 @@ export default function Inventory() {
                 <tr key={product.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                   <td className="p-4 text-gray-900 dark:text-white font-medium">{product.name}</td>
                   <td className="p-4 text-gray-600 dark:text-gray-300">{product.category || '-'}</td>
+                  <td className="p-4 text-gray-600 dark:text-gray-300">{product.makingDate ? new Date(product.makingDate).toLocaleDateString() : '-'}</td>
                   <td className="p-4 text-gray-600 dark:text-gray-300">{formatCurrency(product.purchasePrice)}</td>
                   <td className="p-4 text-gray-600 dark:text-gray-300">{formatCurrency(product.sellingPrice)}</td>
                   <td className="p-4">
@@ -140,7 +144,8 @@ export default function Inventory() {
                           purchasePrice: String(product.purchasePrice),
                           sellingPrice: String(product.sellingPrice),
                           stockQuantity: String(product.stockQuantity),
-                          lowStockThreshold: String(product.lowStockThreshold)
+                          lowStockThreshold: String(product.lowStockThreshold),
+                          makingDate: product.makingDate || ''
                         });
                         setIsModalOpen(true);
                       }}
@@ -189,6 +194,10 @@ export default function Inventory() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label>
                 <input type="text" value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Making Date</label>
+                <input type="date" value={formData.makingDate} onChange={e => setFormData({...formData, makingDate: e.target.value})} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>

@@ -1,16 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, addDoc, updateDoc, doc, onSnapshot, writeBatch } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, updateDoc, doc, onSnapshot, writeBatch, runTransaction, deleteDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
-import { formatCurrency } from '../lib/utils';
-import { Plus, Search, FileText, X, Trash2 } from 'lucide-react';
+import { formatCurrency, formatCurrencyForPDF } from '../lib/utils';
+import { Plus, Search, FileText, X, Trash2, MessageCircle } from 'lucide-react';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
+import QRCode from 'qrcode';
 
 import ConfirmModal from '../components/ConfirmModal';
 
 export default function Sales() {
-  const { user, activeBusiness } = useAuth();
+  const { user, activeBusiness, upiId, qrCodeImage, billTemplate, invoiceFont, invoiceColor, logoPlacement } = useAuth();
   const [sales, setSales] = useState<any[]>([]);
   const [parties, setParties] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
@@ -105,32 +106,42 @@ export default function Sales() {
     };
 
     try {
-      const batch = writeBatch(db);
-      
-      // 1. Create Sale
-      const saleRef = doc(collection(db, 'sales'));
-      batch.set(saleRef, saleData);
+      await runTransaction(db, async (transaction) => {
+        const settingsRef = doc(db, 'businessSettings', `${user.uid}_${activeBusiness}`);
+        const settingsDoc = await transaction.get(settingsRef);
+        let nextInvoiceNumber = 1;
+        if (settingsDoc.exists()) {
+          nextInvoiceNumber = settingsDoc.data().nextInvoiceNumber || 1;
+        }
 
-      // 2. Update Inventory
-      items.forEach(item => {
-        if (item.productId) {
-          const productRef = doc(db, 'products', item.productId);
-          const product = products.find(p => p.id === item.productId);
-          if (product) {
-            batch.update(productRef, { stockQuantity: product.stockQuantity - item.quantity });
+        const saleRef = doc(collection(db, 'sales'));
+        const finalSaleData = {
+          ...saleData,
+          invoiceNumber: nextInvoiceNumber
+        };
+
+        transaction.set(saleRef, finalSaleData);
+        transaction.set(settingsRef, { nextInvoiceNumber: nextInvoiceNumber + 1 }, { merge: true });
+
+        // Update Inventory
+        items.forEach(item => {
+          if (item.productId) {
+            const productRef = doc(db, 'products', item.productId);
+            const product = products.find(p => p.id === item.productId);
+            if (product) {
+              transaction.update(productRef, { stockQuantity: product.stockQuantity - item.quantity });
+            }
+          }
+        });
+
+        // Update Party Balance if Credit
+        if (formData.paymentMode === 'credit' && formData.partyId) {
+          const partyRef = doc(db, 'parties', formData.partyId);
+          if (party) {
+            transaction.update(partyRef, { balance: party.balance + finalAmount });
           }
         }
       });
-
-      // 3. Update Party Balance if Credit
-      if (formData.paymentMode === 'credit' && formData.partyId) {
-        const partyRef = doc(db, 'parties', formData.partyId);
-        if (party) {
-          batch.update(partyRef, { balance: party.balance + finalAmount });
-        }
-      }
-
-      await batch.commit();
       
       setIsModalOpen(false);
       setFormData({ partyId: '', paymentMode: 'cash', discount: '0', manualTotalAmount: '' });
@@ -148,36 +159,300 @@ export default function Sales() {
     }
   };
 
-  const generateInvoice = (sale: any) => {
-    const doc = new jsPDF();
-    doc.setFontSize(20);
-    doc.text('INVOICE', 105, 20, { align: 'center' });
-    
-    doc.setFontSize(12);
-    doc.text(`Date: ${new Date(sale.date).toLocaleDateString()}`, 20, 40);
-    doc.text(`Customer: ${sale.partyName}`, 20, 50);
-    doc.text(`Payment Mode: ${sale.paymentMode.toUpperCase()}`, 20, 60);
+  const createInvoicePDF = async (sale: any) => {
+    let format: string | number[] = 'a4';
+    if (billTemplate === 'compact') format = 'a5';
+    if (billTemplate === 'thermal80' || billTemplate === 'thermal') format = [80, 200];
+    if (billTemplate === 'thermal58') format = [58, 200];
+
+    const doc = new jsPDF({ format });
+    const pageWidth = doc.internal.pageSize.width;
+    const invoiceNo = sale.invoiceNumber ? sale.invoiceNumber.toString().padStart(4, '0') : (sale.id ? sale.id.slice(0, 6).toUpperCase() : Math.floor(Math.random() * 1000000).toString());
+    const dateStr = new Date(sale.date).toLocaleDateString();
+
+    // Apply Font
+    doc.setFont(invoiceFont || 'helvetica');
+
+    // Convert hex color to RGB array
+    const hexToRgb = (hex: string) => {
+      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+      return result ? [
+        parseInt(result[1], 16),
+        parseInt(result[2], 16),
+        parseInt(result[3], 16)
+      ] : [37, 99, 235]; // Default blue
+    };
+    const themeRgb = hexToRgb(invoiceColor || '#2563eb');
+
+    let startY = 70;
+    let theme = 'grid';
+    let headStyles: any = undefined;
+    let styles: any = { font: invoiceFont || 'helvetica' };
+    let margin: any = undefined;
+
+    // Helper for logo placement
+    const getAlignX = (placement: string, leftX = 20, rightX = pageWidth - 20) => {
+      if (placement === 'center') return pageWidth / 2;
+      if (placement === 'right') return rightX;
+      return leftX;
+    };
+    const getAlignStr = (placement: string) => {
+      if (placement === 'center') return 'center';
+      if (placement === 'right') return 'right';
+      return 'left';
+    };
+
+    switch (billTemplate) {
+      case 'modern':
+        doc.setFillColor(themeRgb[0], themeRgb[1], themeRgb[2]);
+        doc.rect(0, 0, pageWidth, 40, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(24);
+        doc.text('INVOICE', 20, 25);
+        doc.setFontSize(12);
+        doc.text(activeBusiness, pageWidth - 20, 25, { align: 'right' });
+        doc.setTextColor(0, 0, 0);
+        doc.text(`Invoice No: INV-${invoiceNo}`, pageWidth - 20, 50, { align: 'right' });
+        doc.text(`Date: ${dateStr}`, pageWidth - 20, 58, { align: 'right' });
+        doc.text(`Bill To:`, 20, 50);
+        doc.setFontSize(14);
+        doc.text(sale.partyName, 20, 58);
+        startY = 70;
+        theme = 'striped';
+        headStyles = { fillColor: themeRgb };
+        break;
+      case 'bold':
+        doc.setFillColor(themeRgb[0], themeRgb[1], themeRgb[2]);
+        doc.rect(0, 0, pageWidth, 40, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(24);
+        doc.setFont(invoiceFont || "helvetica", "bold");
+        doc.text('INVOICE', 20, 25);
+        doc.setFontSize(14);
+        doc.text(activeBusiness, pageWidth - 20, 25, { align: 'right' });
+        doc.setTextColor(0, 0, 0);
+        doc.setFont(invoiceFont || "helvetica", "normal");
+        doc.setFontSize(10);
+        doc.text(`Invoice No: INV-${invoiceNo}`, pageWidth - 20, 50, { align: 'right' });
+        doc.text(`Date: ${dateStr}`, pageWidth - 20, 56, { align: 'right' });
+        doc.setFontSize(12);
+        doc.text(`Bill To: ${sale.partyName}`, 20, 50);
+        startY = 70;
+        theme = 'grid';
+        headStyles = { fillColor: themeRgb, textColor: [255, 255, 255] };
+        break;
+      case 'minimalist':
+        doc.setFontSize(28);
+        doc.setTextColor(100, 100, 100);
+        doc.text('INVOICE', 20, 30);
+        doc.setFontSize(12);
+        doc.setTextColor(0, 0, 0);
+        doc.text(activeBusiness, pageWidth - 20, 30, { align: 'right' });
+        doc.text(`Invoice No: INV-${invoiceNo}`, pageWidth - 20, 50, { align: 'right' });
+        doc.text(`Date: ${dateStr}`, pageWidth - 20, 58, { align: 'right' });
+        doc.text(`Bill To: ${sale.partyName}`, 20, 50);
+        startY = 70;
+        theme = 'plain';
+        headStyles = { textColor: [100, 100, 100], fontStyle: 'bold' };
+        break;
+      case 'professional':
+        doc.setDrawColor(0, 0, 0);
+        doc.setLineWidth(0.5);
+        doc.rect(10, 10, pageWidth - 20, 35);
+        doc.setFontSize(22);
+        doc.text('TAX INVOICE', pageWidth / 2, 22, { align: 'center' });
+        doc.setFontSize(12);
+        doc.text(activeBusiness, pageWidth / 2, 32, { align: 'center' });
+        doc.setFontSize(10);
+        doc.text(`Invoice No: INV-${invoiceNo}`, 15, 42);
+        doc.text(`Date: ${dateStr}`, pageWidth - 15, 42, { align: 'right' });
+        doc.text(`Bill To: ${sale.partyName}`, 15, 55);
+        startY = 65;
+        theme = 'grid';
+        headStyles = { fillColor: [240, 240, 240], textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1 };
+        styles = { lineColor: [0, 0, 0], lineWidth: 0.1 };
+        break;
+      case 'elegant':
+        doc.setFont("times", "roman");
+        doc.setFontSize(26);
+        doc.text(activeBusiness, pageWidth / 2, 30, { align: 'center' });
+        doc.setFontSize(14);
+        doc.text('I N V O I C E', pageWidth / 2, 40, { align: 'center' });
+        doc.setLineWidth(0.2);
+        doc.line(40, 45, pageWidth - 40, 45);
+        doc.setFontSize(11);
+        doc.text(`Invoice No: INV-${invoiceNo}`, 20, 55);
+        doc.text(`Date: ${dateStr}`, 20, 62);
+        doc.text(`Bill To: ${sale.partyName}`, pageWidth - 20, 55, { align: 'right' });
+        startY = 75;
+        theme = 'plain';
+        headStyles = { font: 'times', fontStyle: 'bold' };
+        styles = { font: 'times' };
+        break;
+      case 'corporate':
+        doc.setFillColor(245, 245, 245);
+        doc.rect(0, 0, pageWidth, 45, 'F');
+        doc.setFontSize(20);
+        doc.setTextColor(50, 50, 50);
+        doc.text('INVOICE', 20, 25);
+        doc.setFontSize(10);
+        doc.text(`Invoice No: INV-${invoiceNo}`, 20, 35);
+        doc.text(`Date: ${dateStr}`, 20, 40);
+        doc.setFontSize(14);
+        doc.setTextColor(0, 0, 0);
+        doc.text(activeBusiness, pageWidth - 20, 25, { align: 'right' });
+        doc.setFontSize(10);
+        doc.text(`Bill To:`, 20, 60);
+        doc.setFontSize(12);
+        doc.text(sale.partyName, 20, 66);
+        startY = 80;
+        theme = 'striped';
+        headStyles = { fillColor: [100, 100, 100] };
+        break;
+      case 'compact':
+        doc.setFontSize(18);
+        doc.text('INVOICE', pageWidth / 2, 15, { align: 'center' });
+        doc.setFontSize(10);
+        doc.text(activeBusiness, pageWidth / 2, 22, { align: 'center' });
+        doc.text(`Invoice No: INV-${invoiceNo} | Date: ${dateStr}`, pageWidth / 2, 30, { align: 'center' });
+        doc.text(`Bill To: ${sale.partyName}`, 10, 40);
+        startY = 45;
+        theme = 'grid';
+        styles = { fontSize: 9, cellPadding: 2 };
+        margin = { left: 10, right: 10 };
+        break;
+      case 'thermal80':
+      case 'thermal':
+        doc.setFontSize(16);
+        doc.text(activeBusiness, pageWidth / 2, 15, { align: 'center' });
+        doc.setFontSize(12);
+        doc.text('RECEIPT', pageWidth / 2, 25, { align: 'center' });
+        doc.setFontSize(10);
+        doc.text(`Receipt No: INV-${invoiceNo}`, 5, 35);
+        doc.text(`Date: ${dateStr}`, 5, 42);
+        doc.text(`Customer: ${sale.partyName}`, 5, 49);
+        startY = 55;
+        theme = 'plain';
+        styles = { fontSize: 8, cellPadding: 1 };
+        margin = { left: 5, right: 5 };
+        break;
+      case 'thermal58':
+        doc.setFontSize(14);
+        doc.text(activeBusiness, pageWidth / 2, 12, { align: 'center' });
+        doc.setFontSize(10);
+        doc.text('RECEIPT', pageWidth / 2, 20, { align: 'center' });
+        doc.setFontSize(8);
+        doc.text(`Receipt No: INV-${invoiceNo}`, 3, 28);
+        doc.text(`Date: ${dateStr}`, 3, 34);
+        doc.text(`Customer: ${sale.partyName}`, 3, 40);
+        startY = 45;
+        theme = 'plain';
+        styles = { fontSize: 7, cellPadding: 0.5 };
+        margin = { left: 3, right: 3 };
+        break;
+      case 'standard':
+      default:
+        doc.setFontSize(20);
+        doc.text('TAX INVOICE', pageWidth / 2, 20, { align: 'center' });
+        doc.setFontSize(10);
+        doc.text(`Invoice No: INV-${invoiceNo}`, pageWidth - 20, 30, { align: 'right' });
+        doc.text(`Date: ${dateStr}`, pageWidth - 20, 36, { align: 'right' });
+        doc.setFontSize(14);
+        doc.text(activeBusiness, getAlignX(logoPlacement || 'left'), 40, { align: getAlignStr(logoPlacement || 'left') as any });
+        doc.setFontSize(12);
+        doc.text(`Bill To: ${sale.partyName}`, 20, 55);
+        startY = 65;
+        theme = 'grid';
+        headStyles = { fillColor: themeRgb };
+        break;
+    }
 
     const tableData = sale.items.map((item: any) => [
       item.name,
       item.quantity,
-      formatCurrency(item.price),
-      formatCurrency(item.quantity * item.price)
+      formatCurrencyForPDF(item.price),
+      formatCurrencyForPDF(item.quantity * item.price)
     ]);
 
-    (doc as any).autoTable({
-      startY: 70,
+    autoTable(doc, {
+      startY,
       head: [['Item', 'Qty', 'Price', 'Total']],
       body: tableData,
       foot: [
-        ['', '', 'Subtotal', formatCurrency(sale.totalAmount)],
-        ['', '', 'Discount', formatCurrency(sale.discount)],
-        ['', '', 'Grand Total', formatCurrency(sale.finalAmount)]
+        ['', '', 'Subtotal', formatCurrencyForPDF(sale.totalAmount)],
+        ['', '', 'Discount', formatCurrencyForPDF(sale.discount)],
+        ['', '', 'Grand Total', formatCurrencyForPDF(sale.finalAmount)]
       ],
-      theme: 'grid'
+      theme: theme as any,
+      headStyles,
+      styles,
+      margin,
     });
 
+    const finalY = (doc as any).lastAutoTable.finalY || 150;
+    const isThermal = billTemplate.includes('thermal');
+    const qrSize = isThermal ? (billTemplate === 'thermal58' ? 25 : 30) : 40;
+    const qrX = (pageWidth - qrSize) / 2;
+
+    if (qrCodeImage) {
+      doc.addImage(qrCodeImage, 'JPEG', qrX, finalY + 10, qrSize, qrSize);
+      doc.setFontSize(10);
+      doc.text('Scan to Pay', pageWidth / 2, finalY + 15 + qrSize, { align: 'center' });
+    } else if (upiId) {
+      try {
+        const upiUrl = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(activeBusiness)}&am=${sale.finalAmount}&cu=INR`;
+        const qrDataUrl = await QRCode.toDataURL(upiUrl);
+        doc.addImage(qrDataUrl, 'PNG', qrX, finalY + 10, qrSize, qrSize);
+        doc.setFontSize(10);
+        doc.text('Scan to Pay via UPI', pageWidth / 2, finalY + 15 + qrSize, { align: 'center' });
+      } catch (err) {
+        console.error('Error generating QR code:', err);
+      }
+    }
+
+    return doc;
+  };
+
+  const generateInvoice = async (sale: any) => {
+    const doc = await createInvoicePDF(sale);
     doc.save(`Invoice_${sale.id}.pdf`);
+  };
+
+  const shareOnWhatsApp = async (sale: any) => {
+    const party = parties.find(p => p.id === sale.partyId);
+    const mobile = party?.mobile ? `91${party.mobile.replace(/\D/g, '')}` : '';
+    const invoiceNo = sale.invoiceNumber ? sale.invoiceNumber.toString().padStart(4, '0') : (sale.id ? sale.id.slice(0, 6).toUpperCase() : 'N/A');
+    
+    let text = `Hello ${sale.partyName},\n\nHere is your bill details from *${activeBusiness}*:\n\nInvoice No: *INV-${invoiceNo}*\nTotal Amount: *${formatCurrency(sale.finalAmount)}*\nDate: ${new Date(sale.date).toLocaleDateString()}\n\n`;
+    
+    if (upiId) {
+      text += `You can pay via UPI using this link:\nupi://pay?pa=${upiId}&pn=${encodeURIComponent(activeBusiness)}&am=${sale.finalAmount}&cu=INR\n\n`;
+    }
+    
+    text += `Thank you for your business!`;
+
+    try {
+      const doc = await createInvoicePDF(sale);
+      const blob = doc.output('blob');
+      const file = new File([blob], `Invoice_${sale.id}.pdf`, { type: 'application/pdf' });
+
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: `Invoice from ${activeBusiness}`,
+          text: text
+        });
+      } else {
+        doc.save(`Invoice_${sale.id}.pdf`);
+        alert('Your receipt has been downloaded. Please attach it in WhatsApp.');
+        const url = mobile ? `https://wa.me/${mobile}?text=${encodeURIComponent(text)}` : `https://wa.me/?text=${encodeURIComponent(text)}`;
+        window.open(url, '_blank');
+      }
+    } catch (error) {
+      console.error('Error sharing:', error);
+      const url = mobile ? `https://wa.me/${mobile}?text=${encodeURIComponent(text)}` : `https://wa.me/?text=${encodeURIComponent(text)}`;
+      window.open(url, '_blank');
+    }
   };
 
   const filteredSales = sales.filter(s => 
@@ -215,6 +490,7 @@ export default function Sales() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-gray-50 dark:bg-gray-900/50 text-gray-500 dark:text-gray-400 text-sm">
+                <th className="p-4 font-medium">Invoice #</th>
                 <th className="p-4 font-medium">Date</th>
                 <th className="p-4 font-medium">Customer</th>
                 <th className="p-4 font-medium">Amount</th>
@@ -225,6 +501,9 @@ export default function Sales() {
             <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
               {filteredSales.map(sale => (
                 <tr key={sale.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                  <td className="p-4 text-gray-900 dark:text-white font-medium">
+                    INV-{sale.invoiceNumber ? sale.invoiceNumber.toString().padStart(4, '0') : sale.id.slice(0, 6).toUpperCase()}
+                  </td>
                   <td className="p-4 text-gray-600 dark:text-gray-300">{new Date(sale.date).toLocaleDateString()}</td>
                   <td className="p-4 text-gray-900 dark:text-white font-medium">{sale.partyName}</td>
                   <td className="p-4 text-gray-900 dark:text-white font-medium">{formatCurrency(sale.finalAmount)}</td>
@@ -236,6 +515,13 @@ export default function Sales() {
                     </span>
                   </td>
                   <td className="p-4 flex items-center justify-end gap-2">
+                    <button 
+                      onClick={() => shareOnWhatsApp(sale)}
+                      className="p-2 text-gray-400 hover:text-green-600 transition-colors"
+                      title="Share on WhatsApp"
+                    >
+                      <MessageCircle className="w-4 h-4" />
+                    </button>
                     <button 
                       onClick={() => generateInvoice(sale)}
                       className="p-2 text-gray-400 hover:text-blue-600 transition-colors"
