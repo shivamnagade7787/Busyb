@@ -3,18 +3,21 @@ import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, o
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { formatCurrency, formatCurrencyForPDF } from '../lib/utils';
-import { Plus, Search, Edit2, Trash2, X, ArrowUpRight, ArrowDownRight, IndianRupee } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, X, ArrowUpRight, ArrowDownRight, IndianRupee, Settings2 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import QRCode from 'qrcode';
 
 import ConfirmModal from '../components/ConfirmModal';
+import CustomizeFieldsModal from '../components/CustomizeFieldsModal';
 
 export default function Parties() {
-  const { user, activeBusiness, upiId, qrCodeImage, invoiceFont } = useAuth();
+  const { user, activeBusiness, upiId, qrCodeImage, invoiceFont, customFields } = useAuth();
+  const featureFields = customFields.parties || [];
   const [parties, setParties] = useState<any[]>([]);
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [isCustomizeOpen, setIsCustomizeOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
   const [selectedParty, setSelectedParty] = useState<any>(null);
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
@@ -24,7 +27,8 @@ export default function Parties() {
     mobile: '',
     address: '',
     type: 'customer',
-    balance: '0'
+    balance: '0',
+    customData: {} as Record<string, any>
   });
 
   const [paymentData, setPaymentData] = useState({
@@ -55,6 +59,7 @@ export default function Parties() {
       address: formData.address,
       type: formData.type,
       balance: Number(formData.balance),
+      customData: formData.customData,
       createdAt: editingItem ? editingItem.createdAt : new Date().toISOString()
     };
 
@@ -66,7 +71,7 @@ export default function Parties() {
       }
       setIsModalOpen(false);
       setEditingItem(null);
-      setFormData({ name: '', mobile: '', address: '', type: 'customer', balance: '0' });
+      setFormData({ name: '', mobile: '', address: '', type: 'customer', balance: '0', customData: {} });
     } catch (error) {
       console.error('Error saving party:', error);
     }
@@ -213,13 +218,22 @@ export default function Parties() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Parties</h2>
-        <button 
-          onClick={() => { setEditingItem(null); setIsModalOpen(true); }}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          <Plus className="w-5 h-5" />
-          Add Party
-        </button>
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={() => setIsCustomizeOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+          >
+            <Settings2 className="w-5 h-5" />
+            Customize Fields
+          </button>
+          <button 
+            onClick={() => { setEditingItem(null); setIsModalOpen(true); }}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <Plus className="w-5 h-5" />
+            Add Party
+          </button>
+        </div>
       </div>
 
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
@@ -244,6 +258,9 @@ export default function Parties() {
                 <th className="p-4 font-medium">Type</th>
                 <th className="p-4 font-medium">Mobile</th>
                 <th className="p-4 font-medium">Balance</th>
+                {featureFields.map(f => (
+                  <th key={f.id} className="p-4 font-medium">{f.name}</th>
+                ))}
                 <th className="p-4 font-medium text-right">Actions</th>
               </tr>
             </thead>
@@ -276,6 +293,11 @@ export default function Parties() {
                       )}
                     </div>
                   </td>
+                  {featureFields.map(f => (
+                    <td key={f.id} className="p-4 text-gray-600 dark:text-gray-300">
+                      {party.customData?.[f.id] || '-'}
+                    </td>
+                  ))}
                   <td className="p-4 flex items-center justify-end gap-2">
                     <button 
                       onClick={() => {
@@ -305,7 +327,8 @@ export default function Parties() {
                           mobile: party.mobile || '',
                           address: party.address || '',
                           type: party.type,
-                          balance: String(party.balance)
+                          balance: String(party.balance),
+                          customData: party.customData || {}
                         });
                         setIsModalOpen(true);
                       }}
@@ -426,6 +449,24 @@ export default function Parties() {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Address</label>
                 <textarea rows={2} value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none" />
               </div>
+
+              {featureFields.length > 0 && (
+                <div className="pt-4 border-t border-gray-100 dark:border-gray-700 space-y-4">
+                  <h4 className="font-medium text-gray-900 dark:text-white">Custom Fields</h4>
+                  {featureFields.map(field => (
+                    <div key={field.id}>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{field.name}</label>
+                      <input 
+                        type={field.type === 'number' ? 'number' : 'text'} 
+                        value={formData.customData[field.id] || ''} 
+                        onChange={e => setFormData({...formData, customData: {...formData.customData, [field.id]: e.target.value}})} 
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none" 
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <div className="pt-4 flex justify-end gap-3">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">Cancel</button>
                 <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">Save Party</button>
@@ -441,6 +482,12 @@ export default function Parties() {
         message="Are you sure you want to delete this party? This action cannot be undone."
         onConfirm={handleDelete}
         onCancel={() => setItemToDelete(null)}
+      />
+
+      <CustomizeFieldsModal
+        isOpen={isCustomizeOpen}
+        onClose={() => setIsCustomizeOpen(false)}
+        feature="parties"
       />
     </div>
   );

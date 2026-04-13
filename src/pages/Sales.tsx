@@ -11,7 +11,8 @@ import QRCode from 'qrcode';
 import ConfirmModal from '../components/ConfirmModal';
 
 export default function Sales() {
-  const { user, activeBusiness, upiId, qrCodeImage, billTemplate, invoiceFont, invoiceColor, logoPlacement } = useAuth();
+  const { user, activeBusiness, upiId, qrCodeImage, billTemplate, invoiceFont, invoiceColor, logoPlacement, customFields } = useAuth();
+  const featureFields = customFields.sales || [];
   const [sales, setSales] = useState<any[]>([]);
   const [parties, setParties] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
@@ -24,7 +25,8 @@ export default function Sales() {
     partyId: '',
     paymentMode: 'cash',
     discount: '0',
-    manualTotalAmount: ''
+    manualTotalAmount: '',
+    customData: {} as Record<string, any>
   });
   const [items, setItems] = useState<any[]>([]);
 
@@ -101,6 +103,7 @@ export default function Sales() {
       finalAmount,
       paymentMode: formData.paymentMode,
       items,
+      customData: formData.customData,
       date: new Date().toISOString(),
       createdAt: new Date().toISOString()
     };
@@ -144,7 +147,7 @@ export default function Sales() {
       });
       
       setIsModalOpen(false);
-      setFormData({ partyId: '', paymentMode: 'cash', discount: '0', manualTotalAmount: '' });
+      setFormData({ partyId: '', paymentMode: 'cash', discount: '0', manualTotalAmount: '', customData: {} });
       setItems([]);
     } catch (error) {
       console.error('Error saving sale:', error);
@@ -495,6 +498,9 @@ export default function Sales() {
                 <th className="p-4 font-medium">Customer</th>
                 <th className="p-4 font-medium">Amount</th>
                 <th className="p-4 font-medium">Mode</th>
+                {featureFields.map(f => (
+                  <th key={f.id} className="p-4 font-medium">{f.name}</th>
+                ))}
                 <th className="p-4 font-medium text-right">Actions</th>
               </tr>
             </thead>
@@ -655,6 +661,23 @@ export default function Sales() {
                   <span>{formatCurrency(finalAmount)}</span>
                 </div>
               </div>
+
+              {featureFields.length > 0 && (
+                <div className="pt-4 border-t border-gray-100 dark:border-gray-700 space-y-4">
+                  <h4 className="font-medium text-gray-900 dark:text-white">Custom Fields</h4>
+                  {featureFields.map(field => (
+                    <div key={field.id}>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{field.name}</label>
+                      <input 
+                        type={field.type === 'number' ? 'number' : 'text'} 
+                        value={formData.customData[field.id] || ''} 
+                        onChange={e => setFormData({...formData, customData: {...formData.customData, [field.id]: e.target.value}})} 
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none" 
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="p-4 border-t border-gray-100 dark:border-gray-700 flex justify-end gap-3 bg-gray-50 dark:bg-gray-800/50">

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { collection, query, where, getDocs, addDoc, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, onSnapshot, doc, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
 export interface Business {
@@ -7,6 +7,20 @@ export interface Business {
   name: string;
   type?: string;
   gst?: string;
+}
+
+export interface CustomField {
+  id: string;
+  name: string;
+  type: 'text' | 'number';
+}
+
+export interface CustomFields {
+  sales: CustomField[];
+  purchases: CustomField[];
+  inventory: CustomField[];
+  parties: CustomField[];
+  expenses: CustomField[];
 }
 
 interface AuthContextType {
@@ -28,6 +42,8 @@ interface AuthContextType {
   setInvoiceColor: (color: string) => void;
   logoPlacement: string;
   setLogoPlacement: (placement: string) => void;
+  customFields: CustomFields;
+  updateCustomFields: (feature: keyof CustomFields, fields: CustomField[]) => Promise<void>;
 }
 
 const dummyUser = {
@@ -54,7 +70,9 @@ const AuthContext = createContext<AuthContextType>({
   invoiceColor: '#2563eb',
   setInvoiceColor: () => {},
   logoPlacement: 'left',
-  setLogoPlacement: () => {}
+  setLogoPlacement: () => {},
+  customFields: { sales: [], purchases: [], inventory: [], parties: [], expenses: [] },
+  updateCustomFields: async () => {}
 });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -66,6 +84,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [invoiceFont, setInvoiceFontState] = useState('helvetica');
   const [invoiceColor, setInvoiceColorState] = useState('#2563eb');
   const [logoPlacement, setLogoPlacementState] = useState('left');
+  const [customFields, setCustomFields] = useState<CustomFields>({
+    sales: [], purchases: [], inventory: [], parties: [], expenses: []
+  });
 
   useEffect(() => {
     const savedBiz = localStorage.getItem('smartvyapaar_business');
@@ -110,6 +131,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const savedPlacement = localStorage.getItem('smartvyapaar_placement');
     if (savedPlacement) setLogoPlacementState(savedPlacement);
   }, []);
+
+  useEffect(() => {
+    if (dummyUser && activeBusiness) {
+      const docRef = doc(db, 'businessSettings', `${dummyUser.uid}_${activeBusiness}`);
+      const unsub = onSnapshot(docRef, (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (data.customFields) {
+            setCustomFields(data.customFields);
+          } else {
+            setCustomFields({ sales: [], purchases: [], inventory: [], parties: [], expenses: [] });
+          }
+        } else {
+          setCustomFields({ sales: [], purchases: [], inventory: [], parties: [], expenses: [] });
+        }
+      });
+      return () => unsub();
+    }
+  }, [activeBusiness]);
 
   const setActiveBusiness = (biz: string) => {
     setActiveBusinessState(biz);
@@ -161,6 +201,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const updateCustomFields = async (feature: keyof CustomFields, fields: CustomField[]) => {
+    const docRef = doc(db, 'businessSettings', `${dummyUser.uid}_${activeBusiness}`);
+    await setDoc(docRef, {
+      customFields: {
+        ...customFields,
+        [feature]: fields
+      }
+    }, { merge: true });
+  };
+
   return (
     <AuthContext.Provider value={{ 
       user: dummyUser, 
@@ -180,7 +230,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       invoiceColor,
       setInvoiceColor,
       logoPlacement,
-      setLogoPlacement
+      setLogoPlacement,
+      customFields,
+      updateCustomFields
     }}>
       {children}
     </AuthContext.Provider>
