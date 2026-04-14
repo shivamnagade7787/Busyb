@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, sendPasswordResetEmail } from 'firebase/auth';
 import { auth, googleProvider } from '../lib/firebase';
 import { Store } from 'lucide-react';
 
 export default function Login() {
   const [isLogin, setIsLogin] = useState(true);
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -56,6 +58,98 @@ export default function Login() {
     }
   };
 
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email) {
+      setError('Please enter your email address');
+      return;
+    }
+    setError('');
+    setLoading(true);
+    try {
+      await sendPasswordResetEmail(auth, email);
+      setResetSent(true);
+    } catch (err: any) {
+      console.error(err);
+      if (err.code === 'auth/user-not-found') {
+        setError('No account found with this email address.');
+      } else {
+        setError(err.message || 'An error occurred while sending reset email');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (isForgotPassword) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md p-8">
+          <div className="flex justify-center mb-6">
+            <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/50 rounded-2xl flex items-center justify-center">
+              <Store className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+            </div>
+          </div>
+          <h2 className="text-2xl font-bold text-center text-gray-900 dark:text-white mb-2">
+            Reset Password
+          </h2>
+          <p className="text-center text-gray-500 dark:text-gray-400 mb-8">
+            {resetSent 
+              ? 'Check your email for a link to reset your password. If it doesn’t appear within a few minutes, check your spam folder.'
+              : 'Enter your email address and we will send you a link to reset your password.'}
+          </p>
+
+          {!resetSent ? (
+            <form onSubmit={handleResetPassword} className="space-y-4">
+              {error && (
+                <div className="p-3 bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400 rounded-lg text-sm text-center">
+                  {error}
+                </div>
+              )}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
+                <input 
+                  required 
+                  type="email" 
+                  value={email} 
+                  onChange={e => setEmail(e.target.value)} 
+                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none" 
+                  placeholder="Enter your email"
+                />
+              </div>
+              <button 
+                type="submit" 
+                disabled={loading}
+                className="w-full py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium disabled:opacity-50"
+              >
+                {loading ? 'Sending...' : 'Send Reset Link'}
+              </button>
+            </form>
+          ) : (
+            <button 
+              onClick={() => { setIsForgotPassword(false); setIsLogin(true); setResetSent(false); setError(''); }}
+              className="w-full py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium"
+            >
+              Return to Login
+            </button>
+          )}
+
+          {!resetSent && (
+            <div className="mt-6 text-center">
+              <button 
+                type="button"
+                onClick={() => { setIsForgotPassword(false); setError(''); }}
+                className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                Back to Login
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md p-8">
@@ -89,7 +183,18 @@ export default function Login() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Password</label>
+              {isLogin && (
+                <button 
+                  type="button"
+                  onClick={() => { setIsForgotPassword(true); setError(''); }}
+                  className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  Forgot Password?
+                </button>
+              )}
+            </div>
             <input 
               required 
               type="password" 
