@@ -11,7 +11,7 @@ import ConfirmModal from '../components/ConfirmModal';
 import CustomizeFieldsModal from '../components/CustomizeFieldsModal';
 
 export default function Parties() {
-  const { user, activeBusiness, upiId, qrCodeImage, invoiceFont, customFields } = useAuth();
+  const { user, uid, activeBusiness, upiId, qrCodeImage, invoiceFont, customFields } = useAuth();
   const featureFields = customFields.parties || [];
   const [parties, setParties] = useState<any[]>([]);
   const [search, setSearch] = useState('');
@@ -39,8 +39,8 @@ export default function Parties() {
   });
 
   useEffect(() => {
-    if (!user) return;
-    const q = query(collection(db, 'parties'), where('userId', '==', user.uid));
+    if (!uid) return;
+    const q = query(collection(db, 'parties'), where('userId', '==', uid));
     const unsub = onSnapshot(q, (snapshot) => {
       setParties(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter((d: any) => (d.businessId || 'Business 1') === activeBusiness));
     });
@@ -49,10 +49,10 @@ export default function Parties() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
+    if (!uid) return;
 
     const data = {
-      userId: user.uid,
+      userId: uid,
       businessId: activeBusiness,
       name: formData.name,
       mobile: formData.mobile,
@@ -97,7 +97,7 @@ export default function Parties() {
       // Record payment
       const paymentRef = doc(collection(db, 'payments'));
       batch.set(paymentRef, {
-        userId: user.uid,
+        userId: uid,
         businessId: activeBusiness,
         partyId: selectedParty.id,
         partyName: selectedParty.name,

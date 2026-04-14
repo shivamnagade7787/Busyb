@@ -11,7 +11,7 @@ import QRCode from 'qrcode';
 import ConfirmModal from '../components/ConfirmModal';
 
 export default function Sales() {
-  const { user, activeBusiness, upiId, qrCodeImage, billTemplate, invoiceFont, invoiceColor, logoPlacement, customFields } = useAuth();
+  const { user, uid, activeBusiness, upiId, qrCodeImage, billTemplate, invoiceFont, invoiceColor, logoPlacement, customFields } = useAuth();
   const featureFields = customFields.sales || [];
   const [sales, setSales] = useState<any[]>([]);
   const [parties, setParties] = useState<any[]>([]);
@@ -31,20 +31,20 @@ export default function Sales() {
   const [items, setItems] = useState<any[]>([]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!uid) return;
     
-    const unsubSales = onSnapshot(query(collection(db, 'sales'), where('userId', '==', user.uid)), (snapshot) => {
+    const unsubSales = onSnapshot(query(collection(db, 'sales'), where('userId', '==', uid)), (snapshot) => {
       setSales(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
         .filter((d: any) => (d.businessId || 'Business 1') === activeBusiness)
         .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()));
     });
 
-    const unsubParties = onSnapshot(query(collection(db, 'parties'), where('userId', '==', user.uid)), (snapshot) => {
+    const unsubParties = onSnapshot(query(collection(db, 'parties'), where('userId', '==', uid)), (snapshot) => {
       setParties(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
         .filter((d: any) => (d.businessId || 'Business 1') === activeBusiness));
     });
 
-    const unsubProducts = onSnapshot(query(collection(db, 'products'), where('userId', '==', user.uid)), (snapshot) => {
+    const unsubProducts = onSnapshot(query(collection(db, 'products'), where('userId', '==', uid)), (snapshot) => {
       setProducts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
         .filter((d: any) => (d.businessId || 'Business 1') === activeBusiness));
     });
@@ -79,7 +79,7 @@ export default function Sales() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (!user) return;
+    if (!uid) return;
 
     if (items.length === 0 && !formData.manualTotalAmount) {
       setError("Please add items or enter a total amount.");
@@ -94,7 +94,7 @@ export default function Sales() {
     const party = parties.find(p => p.id === formData.partyId);
     
     const saleData = {
-      userId: user.uid,
+      userId: uid,
       businessId: activeBusiness,
       partyId: formData.partyId,
       partyName: party?.name || 'Walk-in Customer',
@@ -110,7 +110,7 @@ export default function Sales() {
 
     try {
       await runTransaction(db, async (transaction) => {
-        const settingsRef = doc(db, 'businessSettings', `${user.uid}_${activeBusiness}`);
+        const settingsRef = doc(db, 'businessSettings', `${uid}_${activeBusiness}`);
         const settingsDoc = await transaction.get(settingsRef);
         let nextInvoiceNumber = 1;
         if (settingsDoc.exists()) {
@@ -426,13 +426,13 @@ export default function Sales() {
     const mobile = party?.mobile ? `91${party.mobile.replace(/\D/g, '')}` : '';
     const invoiceNo = sale.invoiceNumber ? sale.invoiceNumber.toString().padStart(4, '0') : (sale.id ? sale.id.slice(0, 6).toUpperCase() : 'N/A');
     
-    let text = `Hello ${sale.partyName},\n\nHere is your bill details from *${activeBusiness}*:\n\nInvoice No: *INV-${invoiceNo}*\nTotal Amount: *${formatCurrency(sale.finalAmount)}*\nDate: ${new Date(sale.date).toLocaleDateString()}\n\n`;
+    let text = `Hello / नमस्कार ${sale.partyName},\n\nHere is your bill details from / कडून तुमच्या बिलाचा तपशील *${activeBusiness}*:\n\nInvoice No / बिल क्रमांक: *INV-${invoiceNo}*\nTotal Amount / एकूण रक्कम: *${formatCurrency(sale.finalAmount)}*\nDate / तारीख: ${new Date(sale.date).toLocaleDateString()}\n\n`;
     
     if (upiId) {
-      text += `You can pay via UPI using this link:\nupi://pay?pa=${upiId}&pn=${encodeURIComponent(activeBusiness)}&am=${sale.finalAmount}&cu=INR\n\n`;
+      text += `You can pay via UPI using this link / तुम्ही या UPI लिंकचा वापर करून पेमेंट करू शकता:\nupi://pay?pa=${upiId}&pn=${encodeURIComponent(activeBusiness)}&am=${sale.finalAmount}&cu=INR\n\n`;
     }
     
-    text += `Thank you for your business!`;
+    text += `Thank you for your business! / आमच्याशी व्यवहार केल्याबद्दल धन्यवाद!`;
 
     try {
       const doc = await createInvoicePDF(sale);

@@ -9,7 +9,7 @@ import ConfirmModal from '../components/ConfirmModal';
 import CustomizeFieldsModal from '../components/CustomizeFieldsModal';
 
 export default function Inventory() {
-  const { user, activeBusiness, customFields } = useAuth();
+  const { user, uid, activeBusiness, customFields } = useAuth();
   const featureFields = customFields.inventory || [];
   const [products, setProducts] = useState<any[]>([]);
   const [search, setSearch] = useState('');
@@ -35,8 +35,8 @@ export default function Inventory() {
   });
 
   useEffect(() => {
-    if (!user) return;
-    const q = query(collection(db, 'products'), where('userId', '==', user.uid));
+    if (!uid) return;
+    const q = query(collection(db, 'products'), where('userId', '==', uid));
     const unsub = onSnapshot(q, (snapshot) => {
       setProducts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter((d: any) => (d.businessId || 'Business 1') === activeBusiness));
     });
@@ -45,10 +45,10 @@ export default function Inventory() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
+    if (!uid) return;
 
     const data = {
-      userId: user.uid,
+      userId: uid,
       businessId: activeBusiness,
       name: formData.name,
       category: formData.category,

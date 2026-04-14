@@ -9,7 +9,7 @@ import ConfirmModal from '../components/ConfirmModal';
 import CustomizeFieldsModal from '../components/CustomizeFieldsModal';
 
 export default function Purchases() {
-  const { user, activeBusiness, customFields } = useAuth();
+  const { user, uid, activeBusiness, customFields } = useAuth();
   const featureFields = customFields.purchases || [];
   const [purchases, setPurchases] = useState<any[]>([]);
   const [search, setSearch] = useState('');
@@ -28,11 +28,11 @@ export default function Purchases() {
   });
 
   useEffect(() => {
-    if (!user || !activeBusiness) return;
+    if (!uid || !activeBusiness) return;
 
     const q = query(
       collection(db, 'purchases'),
-      where('userId', '==', user.uid)
+      where('userId', '==', uid)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -99,7 +99,7 @@ export default function Purchases() {
         ...formData,
         amount: Number(formData.amount),
         date: new Date().toISOString(),
-        userId: user.uid,
+        userId: uid,
         businessName: activeBusiness
       });
       

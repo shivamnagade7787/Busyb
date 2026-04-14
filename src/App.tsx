@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { AuthProvider } from './contexts/AuthContext';
 import Layout from './components/layout/Layout';
 import Dashboard from './pages/Dashboard';
 import Sales from './pages/Sales';
@@ -15,30 +15,6 @@ import Purchases from './pages/Purchases';
 import Reports from './pages/Reports';
 import Credit from './pages/Credit';
 import CustomerPortal from './pages/CustomerPortal';
-import Login from './pages/Login';
-
-function ProtectedRoutes() {
-  const { user } = useAuth();
-  
-  if (!user) {
-    return <Navigate to="/login" replace />;
-  }
-
-  return (
-    <Routes>
-      <Route element={<Layout />}>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/sales" element={<Sales />} />
-        <Route path="/expenses" element={<Expenses />} />
-        <Route path="/inventory" element={<Inventory />} />
-        <Route path="/parties" element={<Parties />} />
-        <Route path="/purchases" element={<Purchases />} />
-        <Route path="/credit" element={<Credit />} />
-        <Route path="/reports" element={<Reports />} />
-      </Route>
-    </Routes>
-  );
-}
 
 export default function App() {
   return (
@@ -46,8 +22,16 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/portal" element={<CustomerPortal />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/*" element={<ProtectedRoutes />} />
+          <Route element={<Layout />}>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/sales" element={<Sales />} />
+            <Route path="/expenses" element={<Expenses />} />
+            <Route path="/inventory" element={<Inventory />} />
+            <Route path="/parties" element={<Parties />} />
+            <Route path="/purchases" element={<Purchases />} />
+            <Route path="/credit" element={<Credit />} />
+            <Route path="/reports" element={<Reports />} />
+          </Route>
         </Routes>
       </BrowserRouter>
     </AuthProvider>

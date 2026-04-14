@@ -8,7 +8,7 @@ import { startOfDay, endOfDay } from 'date-fns';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 export default function Dashboard() {
-  const { user, activeBusiness } = useAuth();
+  const { user, uid, activeBusiness } = useAuth();
   const [stats, setStats] = useState({
     todaySales: 0,
     todayExpenses: 0,
@@ -24,13 +24,13 @@ export default function Dashboard() {
   const [salesData, setSalesData] = useState<any[]>([]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!uid) return;
 
     const todayStart = startOfDay(new Date()).toISOString();
     const todayEnd = endOfDay(new Date()).toISOString();
 
     // Listen to Sales
-    const salesQ = query(collection(db, 'sales'), where('userId', '==', user.uid));
+    const salesQ = query(collection(db, 'sales'), where('userId', '==', uid));
     const unsubSales = onSnapshot(salesQ, (snapshot) => {
       let todayTotal = 0;
       let cash = 0;
@@ -60,7 +60,7 @@ export default function Dashboard() {
     });
 
     // Listen to Expenses
-    const expQ = query(collection(db, 'expenses'), where('userId', '==', user.uid));
+    const expQ = query(collection(db, 'expenses'), where('userId', '==', uid));
     const unsubExp = onSnapshot(expQ, (snapshot) => {
       let todayTotal = 0;
       let cash = 0;
@@ -82,7 +82,7 @@ export default function Dashboard() {
     });
 
     // Listen to Payments
-    const payQ = query(collection(db, 'payments'), where('userId', '==', user.uid));
+    const payQ = query(collection(db, 'payments'), where('userId', '==', uid));
     const unsubPay = onSnapshot(payQ, (snapshot) => {
       let cash = 0;
       let online = 0;
@@ -102,7 +102,7 @@ export default function Dashboard() {
     });
 
     // Listen to Parties for Receivables/Payables
-    const partiesQ = query(collection(db, 'parties'), where('userId', '==', user.uid));
+    const partiesQ = query(collection(db, 'parties'), where('userId', '==', uid));
     const unsubParties = onSnapshot(partiesQ, (snapshot) => {
       let rec = 0;
       let pay = 0;
@@ -118,7 +118,7 @@ export default function Dashboard() {
     });
 
     // Listen to Products for Low Stock
-    const prodQ = query(collection(db, 'products'), where('userId', '==', user.uid));
+    const prodQ = query(collection(db, 'products'), where('userId', '==', uid));
     const unsubProd = onSnapshot(prodQ, (snapshot) => {
       const lowStock: any[] = [];
       snapshot.docs.forEach(doc => {

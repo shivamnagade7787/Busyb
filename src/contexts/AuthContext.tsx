@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { collection, query, where, getDocs, addDoc, onSnapshot, doc, setDoc } from 'firebase/firestore';
-import { onAuthStateChanged, User, signOut } from 'firebase/auth';
+import { collection, query, where, getDocs, addDoc, onSnapshot, doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { onAuthStateChanged, User, signOut, signInAnonymously } from 'firebase/auth';
 import { db, auth } from '../lib/firebase';
 
 export interface Business {
@@ -31,6 +31,8 @@ interface AuthContextType {
   setActiveBusiness: (biz: string) => void;
   businesses: Business[];
   addBusiness: (biz: Omit<Business, 'id'>) => Promise<void>;
+  updateBusiness: (id: string, biz: Partial<Business>) => Promise<void>;
+  deleteBusiness: (id: string) => Promise<void>;
   upiId: string;
   setUpiId: (id: string) => void;
   qrCodeImage: string | null;
@@ -46,6 +48,10 @@ interface AuthContextType {
   customFields: CustomFields;
   updateCustomFields: (feature: keyof CustomFields, fields: CustomField[]) => Promise<void>;
   logout: () => Promise<void>;
+  uid: string;
+  linkedPhone: string | null;
+  linkDevice: (phone: string, targetUid: string) => void;
+  unlinkDevice: () => void;
 }
 
 const AuthContext = createContext<AuthContextType>({ 
@@ -55,6 +61,8 @@ const AuthContext = createContext<AuthContextType>({
   setActiveBusiness: () => {},
   businesses: [],
   addBusiness: async () => {},
+  updateBusiness: async () => {},
+  deleteBusiness: async () => {},
   upiId: '',
   setUpiId: () => {},
   qrCodeImage: null,
@@ -69,7 +77,11 @@ const AuthContext = createContext<AuthContextType>({
   setLogoPlacement: () => {},
   customFields: { sales: [], purchases: [], inventory: [], parties: [], expenses: [] },
   updateCustomFields: async () => {},
-  logout: async () => {}
+  logout: async () => {},
+  uid: '',
+  linkedPhone: null,
+  linkDevice: () => {},
+  unlinkDevice: () => {}
 });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -86,28 +98,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [customFields, setCustomFields] = useState<CustomFields>({
     sales: [], purchases: [], inventory: [], parties: [], expenses: []
   });
+  const [linkedUid, setLinkedUid] = useState<string | null>(localStorage.getItem('smartvyapaar_linked_uid'));
+  const [linkedPhone, setLinkedPhone] = useState<string | null>(localStorage.getItem('smartvyapaar_linked_phone'));
+
+  const uid = linkedUid || (user ? user.uid : '');
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      setLoading(false);
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (currentUser) {
+        setUser(currentUser);
+        setLoading(false);
+      } else {
+        try {
+          await signInAnonymously(auth);
+        } catch (error) {
+          console.error("Anonymous auth failed:", error);
+          setLoading(false);
+        }
+      }
     });
     return () => unsubscribe();
   }, []);
 
   useEffect(() => {
-    if (!user) return;
+    if (!uid) return;
 
     const savedBiz = localStorage.getItem('smartvyapaar_business');
     if (savedBiz) setActiveBusinessState(savedBiz);
 
     // Fetch businesses from Firestore
-    const q = query(collection(db, 'businesses'), where('userId', '==', user.uid));
+    const q = query(collection(db, 'businesses'), where('userId', '==', uid));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const bizData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Business));
       if (bizData.length === 0) {
         // Add default business if none exists
-        const defaultBiz = { name: 'Business 1', userId: user.uid };
+        const defaultBiz = { name: 'Business 1', userId: uid };
         addDoc(collection(db, 'businesses'), defaultBiz);
       } else {
         setBusinesses(bizData);
@@ -141,11 +166,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (savedPlacement) setLogoPlacementState(savedPlacement);
 
     return () => unsubscribe();
-  }, [user]);
+  }, [uid]);
 
   useEffect(() => {
-    if (user && activeBusiness) {
-      const docRef = doc(db, 'businessSettings', `${user.uid}_${activeBusiness}`);
+    if (uid && activeBusiness) {
+      const docRef = doc(db, 'businessSettings', `${uid}_${activeBusiness}`);
       const unsub = onSnapshot(docRef, (docSnap) => {
         if (docSnap.exists()) {
           const data = docSnap.data();
@@ -160,7 +185,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       return () => unsub();
     }
-  }, [user, activeBusiness]);
+  }, [uid, activeBusiness]);
 
   const setActiveBusiness = (biz: string) => {
     setActiveBusinessState(biz);
@@ -202,20 +227,46 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const addBusiness = async (biz: Omit<Business, 'id'>) => {
-    if (!user) return;
+    if (!uid) return;
     try {
       await addDoc(collection(db, 'businesses'), {
         ...biz,
-        userId: user.uid
+        userId: uid
       });
     } catch (error) {
       console.error("Error adding business: ", error);
     }
   };
 
+  const updateBusiness = async (id: string, biz: Partial<Business>) => {
+    if (!uid) return;
+    try {
+      const docRef = doc(db, 'businesses', id);
+      await updateDoc(docRef, biz);
+      if (biz.name && biz.name !== activeBusiness) {
+        setActiveBusiness(biz.name);
+      }
+    } catch (error) {
+      console.error("Error updating business: ", error);
+    }
+  };
+
+  const deleteBusiness = async (id: string) => {
+    if (!uid) return;
+    try {
+      await deleteDoc(doc(db, 'businesses', id));
+      if (businesses.length > 1) {
+        const remaining = businesses.filter(b => b.id !== id);
+        setActiveBusiness(remaining[0].name);
+      }
+    } catch (error) {
+      console.error("Error deleting business: ", error);
+    }
+  };
+
   const updateCustomFields = async (feature: keyof CustomFields, fields: CustomField[]) => {
-    if (!user) return;
-    const docRef = doc(db, 'businessSettings', `${user.uid}_${activeBusiness}`);
+    if (!uid) return;
+    const docRef = doc(db, 'businessSettings', `${uid}_${activeBusiness}`);
     await setDoc(docRef, {
       customFields: {
         ...customFields,
@@ -224,9 +275,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }, { merge: true });
   };
 
+  const linkDevice = (phone: string, targetUid: string) => {
+    setLinkedUid(targetUid);
+    setLinkedPhone(phone);
+    localStorage.setItem('smartvyapaar_linked_uid', targetUid);
+    localStorage.setItem('smartvyapaar_linked_phone', phone);
+  };
+
+  const unlinkDevice = () => {
+    setLinkedUid(null);
+    setLinkedPhone(null);
+    localStorage.removeItem('smartvyapaar_linked_uid');
+    localStorage.removeItem('smartvyapaar_linked_phone');
+  };
+
   const logout = async () => {
     try {
       await signOut(auth);
+      unlinkDevice();
     } catch (error) {
       console.error("Error signing out: ", error);
     }
@@ -240,6 +306,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setActiveBusiness,
       businesses,
       addBusiness,
+      updateBusiness,
+      deleteBusiness,
       upiId, 
       setUpiId,
       qrCodeImage,

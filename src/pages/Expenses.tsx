@@ -9,7 +9,7 @@ import ConfirmModal from '../components/ConfirmModal';
 import CustomizeFieldsModal from '../components/CustomizeFieldsModal';
 
 export default function Expenses() {
-  const { user, activeBusiness, customFields } = useAuth();
+  const { user, uid, activeBusiness, customFields } = useAuth();
   const featureFields = customFields.expenses || [];
   const [expenses, setExpenses] = useState<any[]>([]);
   const [search, setSearch] = useState('');
@@ -29,8 +29,8 @@ export default function Expenses() {
   const categories = ['Rent', 'Salary', 'Transport', 'Electricity', 'Maintenance', 'Marketing', 'Other'];
 
   useEffect(() => {
-    if (!user) return;
-    const q = query(collection(db, 'expenses'), where('userId', '==', user.uid));
+    if (!uid) return;
+    const q = query(collection(db, 'expenses'), where('userId', '==', uid));
     const unsub = onSnapshot(q, (snapshot) => {
       setExpenses(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
         .filter((d: any) => (d.businessId || 'Business 1') === activeBusiness)
@@ -41,10 +41,10 @@ export default function Expenses() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
+    if (!uid) return;
 
     const data = {
-      userId: user.uid,
+      userId: uid,
       businessId: activeBusiness,
       category: formData.category,
       amount: Number(formData.amount),

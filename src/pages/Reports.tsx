@@ -9,7 +9,7 @@ import autoTable from 'jspdf-autotable';
 import { startOfMonth, endOfMonth, format, subMonths, subYears } from 'date-fns';
 
 export default function Reports() {
-  const { user, activeBusiness } = useAuth();
+  const { user, uid, activeBusiness } = useAuth();
   const [loading, setLoading] = useState(false);
   const [reportType, setReportType] = useState('sales');
   const [dateRange, setDateRange] = useState('thisMonth');
@@ -73,12 +73,12 @@ export default function Reports() {
         // These collections might not have 'date' field, use 'createdAt' or just filter by user
         q = query(
           collection(db, collectionName), 
-          where('userId', '==', user.uid)
+          where('userId', '==', uid)
         );
       } else {
         q = query(
           collection(db, collectionName), 
-          where('userId', '==', user.uid),
+          where('userId', '==', uid),
           where('date', '>=', startStr),
           where('date', '<=', endStr)
         );

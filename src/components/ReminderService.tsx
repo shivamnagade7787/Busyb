@@ -5,13 +5,13 @@ import { useAuth } from '../contexts/AuthContext';
 import { Bell, X } from 'lucide-react';
 
 export default function ReminderService() {
-  const { user, activeBusiness } = useAuth();
+  const { user, uid, activeBusiness } = useAuth();
   const [reminders, setReminders] = useState<any[]>([]);
   const [activeReminders, setActiveReminders] = useState<any[]>([]);
 
   useEffect(() => {
-    if (!user) return;
-    const q = query(collection(db, 'products'), where('userId', '==', user.uid));
+    if (!uid) return;
+    const q = query(collection(db, 'products'), where('userId', '==', uid));
     const unsub = onSnapshot(q, (snapshot) => {
       const products = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
         .filter((d: any) => 
@@ -88,7 +88,9 @@ export default function ReminderService() {
 
   const sendWhatsApp = (reminder: any) => {
     if (!reminder.ownerWhatsApp) return;
-    const message = encodeURIComponent(`*Inventory Reminder*\n\nProduct: ${reminder.name}\nCurrent Stock: ${reminder.stockQuantity}\nDate: ${reminder.reminderDate} ${reminder.reminderTime}`);
+    const message = encodeURIComponent(
+      `*Inventory Reminder / इन्व्हेंटरी रिमाइंडर*\n\nProduct / उत्पादन: ${reminder.name}\nCurrent Stock / सध्याचा स्टॉक: ${reminder.stockQuantity}\nDate / तारीख: ${reminder.reminderDate} ${reminder.reminderTime}`
+    );
     window.open(`https://wa.me/${reminder.ownerWhatsApp.replace(/[^0-9]/g, '')}?text=${message}`, '_blank');
     dismissReminder(reminder.id);
   };

@@ -7,7 +7,7 @@ import { Search, X, ArrowUpRight, ArrowDownRight, MessageCircle, ChevronRight, U
 import ConfirmModal from '../components/ConfirmModal';
 
 export default function Credit() {
-  const { user, activeBusiness, upiId, businesses } = useAuth();
+  const { user, uid, activeBusiness, upiId, businesses } = useAuth();
   const currentBusiness = businesses.find(b => b.name === activeBusiness);
   const [customers, setCustomers] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
@@ -25,15 +25,15 @@ export default function Credit() {
   const [itemToDelete, setItemToDelete] = useState<{ type: 'customer' | 'transaction', id: string } | null>(null);
 
   useEffect(() => {
-    if (!user) return;
+    if (!uid) return;
     
-    const qCustomers = query(collection(db, 'credit_customers'), where('userId', '==', user.uid));
+    const qCustomers = query(collection(db, 'credit_customers'), where('userId', '==', uid));
     const unsubCustomers = onSnapshot(qCustomers, (snapshot) => {
       setCustomers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
         .filter((d: any) => (d.businessId || 'Business 1') === activeBusiness));
     });
 
-    const qTransactions = query(collection(db, 'credit_transactions'), where('userId', '==', user.uid));
+    const qTransactions = query(collection(db, 'credit_transactions'), where('userId', '==', uid));
     const unsubTransactions = onSnapshot(qTransactions, (snapshot) => {
       setTransactions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
         .filter((d: any) => (d.businessId || 'Business 1') === activeBusiness)
@@ -45,10 +45,10 @@ export default function Credit() {
 
   const handleAddCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
+    if (!uid) return;
     try {
       await addDoc(collection(db, 'credit_customers'), {
-        userId: user.uid,
+        userId: uid,
         businessId: activeBusiness,
         name: customerForm.name,
         mobile: customerForm.mobile,
@@ -64,7 +64,7 @@ export default function Credit() {
 
   const handleAddTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !selectedCustomer) return;
+    if (!uid || !selectedCustomer) return;
     try {
       if (editingTransaction) {
         await updateDoc(doc(db, 'credit_transactions', editingTransaction.id), {
@@ -75,7 +75,7 @@ export default function Credit() {
         });
       } else {
         await addDoc(collection(db, 'credit_transactions'), {
-          userId: user.uid,
+          userId: uid,
           businessId: activeBusiness,
           customer_id: selectedCustomer.id,
           type: transactionType,
@@ -136,11 +136,11 @@ export default function Credit() {
 
   const sendWhatsAppReminder = (customer: any, balance: number) => {
     if (!customer.mobile) return;
-    let message = `Hello ${customer.name},\n\nThis is a friendly reminder that your pending balance is ${formatCurrency(balance)}. Please arrange for the payment at your earliest convenience.\n\nThank you!`;
+    let message = `Hello / नमस्कार ${customer.name},\n\nThis is a friendly reminder that your pending balance is ${formatCurrency(balance)}. Please arrange for the payment at your earliest convenience.\n\nही एक नम्र आठवण आहे की तुमची थकीत रक्कम ${formatCurrency(balance)} आहे. कृपया लवकरात लवकर पेमेंट करण्याची व्यवस्था करा.\n\nThank you! / धन्यवाद!`;
     
     if (upiId) {
       const upiLink = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(currentBusiness?.name || 'Business')}&am=${balance}&cu=INR`;
-      message += `\n\nYou can pay directly using this UPI link:\n${upiLink}`;
+      message += `\n\nYou can pay directly using this UPI link / तुम्ही या UPI लिंकचा वापर करून थेट पेमेंट करू शकता:\n${upiLink}`;
     }
     
     window.open(`https://wa.me/${customer.mobile.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(message)}`, '_blank');
