@@ -26,7 +26,7 @@ export default function Login() {
       if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
         setError('Invalid email or password');
       } else if (err.code === 'auth/email-already-in-use') {
-        setError('Email is already registered');
+        setError('Email is already registered. Please click "Already have an account? Log in" below to sign in.');
       } else if (err.code === 'auth/weak-password') {
         setError('Password should be at least 6 characters');
       } else if (err.code === 'auth/operation-not-allowed') {
