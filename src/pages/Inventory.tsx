@@ -26,6 +26,11 @@ export default function Inventory() {
     stockQuantity: '',
     lowStockThreshold: '5',
     makingDate: '',
+    enableReminder: false,
+    reminderDate: '',
+    reminderTime: '',
+    ownerWhatsApp: '',
+    imageUrl: '',
     customData: {} as Record<string, any>
   });
 
@@ -52,6 +57,12 @@ export default function Inventory() {
       stockQuantity: Number(formData.stockQuantity),
       lowStockThreshold: Number(formData.lowStockThreshold),
       makingDate: formData.makingDate,
+      enableReminder: formData.enableReminder,
+      reminderDate: formData.reminderDate,
+      reminderTime: formData.reminderTime,
+      reminderDismissed: false,
+      ownerWhatsApp: formData.ownerWhatsApp,
+      imageUrl: formData.imageUrl,
       customData: formData.customData,
       createdAt: editingItem ? editingItem.createdAt : new Date().toISOString()
     };
@@ -64,7 +75,7 @@ export default function Inventory() {
       }
       setIsModalOpen(false);
       setEditingItem(null);
-      setFormData({ name: '', category: '', purchasePrice: '', sellingPrice: '', stockQuantity: '', lowStockThreshold: '5', makingDate: '', customData: {} });
+      setFormData({ name: '', category: '', purchasePrice: '', sellingPrice: '', stockQuantity: '', lowStockThreshold: '5', makingDate: '', enableReminder: false, reminderDate: '', reminderTime: '', ownerWhatsApp: '', imageUrl: '', customData: {} });
     } catch (error) {
       console.error('Error saving product:', error);
     }
@@ -74,6 +85,42 @@ export default function Inventory() {
     if (itemToDelete) {
       await deleteDoc(doc(db, 'products', itemToDelete));
       setItemToDelete(null);
+    }
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_SIZE = 400;
+          let width = img.width;
+          let height = img.height;
+          if (width > height) {
+            if (width > MAX_SIZE) {
+              height *= MAX_SIZE / width;
+              width = MAX_SIZE;
+            }
+          } else {
+            if (height > MAX_SIZE) {
+              width *= MAX_SIZE / height;
+              height = MAX_SIZE;
+            }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            setFormData(prev => ({ ...prev, imageUrl: canvas.toDataURL('image/jpeg', 0.8) }));
+          }
+        };
+        img.src = event.target?.result as string;
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -122,6 +169,7 @@ export default function Inventory() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-gray-50 dark:bg-gray-900/50 text-gray-500 dark:text-gray-400 text-sm">
+                <th className="p-4 font-medium w-16">Image</th>
                 <th className="p-4 font-medium">Product Name</th>
                 <th className="p-4 font-medium">Category</th>
                 <th className="p-4 font-medium">Making Date</th>
@@ -137,6 +185,15 @@ export default function Inventory() {
             <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
               {filteredProducts.map(product => (
                 <tr key={product.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                  <td className="p-4">
+                    {product.imageUrl ? (
+                      <img src={product.imageUrl} alt={product.name} className="w-10 h-10 object-cover rounded-lg border border-gray-200 dark:border-gray-700" />
+                    ) : (
+                      <div className="w-10 h-10 bg-gray-100 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-400 text-xs">
+                        No img
+                      </div>
+                    )}
+                  </td>
                   <td className="p-4 text-gray-900 dark:text-white font-medium">{product.name}</td>
                   <td className="p-4 text-gray-600 dark:text-gray-300">{product.category || '-'}</td>
                   <td className="p-4 text-gray-600 dark:text-gray-300">{product.makingDate ? new Date(product.makingDate).toLocaleDateString() : '-'}</td>
@@ -168,6 +225,11 @@ export default function Inventory() {
                           stockQuantity: String(product.stockQuantity),
                           lowStockThreshold: String(product.lowStockThreshold),
                           makingDate: product.makingDate || '',
+                          enableReminder: product.enableReminder || false,
+                          reminderDate: product.reminderDate || '',
+                          reminderTime: product.reminderTime || '',
+                          ownerWhatsApp: product.ownerWhatsApp || '',
+                          imageUrl: product.imageUrl || '',
                           customData: product.customData || {}
                         });
                         setIsModalOpen(true);
@@ -210,9 +272,26 @@ export default function Inventory() {
               </button>
             </div>
             <form onSubmit={handleSubmit} className="p-4 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Product Name</label>
-                <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none" />
+              <div className="flex items-center gap-4 mb-4">
+                {formData.imageUrl ? (
+                  <div className="relative">
+                    <img src={formData.imageUrl} alt="Preview" className="w-20 h-20 object-cover rounded-lg border border-gray-200 dark:border-gray-700" />
+                    <button type="button" onClick={() => setFormData({...formData, imageUrl: ''})} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-sm hover:bg-red-600">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex flex-col items-center justify-center w-20 h-20 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 dark:hover:bg-bray-800 dark:bg-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:hover:border-gray-500 dark:hover:bg-gray-600">
+                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                      <Plus className="w-6 h-6 text-gray-500 dark:text-gray-400" />
+                    </div>
+                    <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
+                  </label>
+                )}
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Product Name</label>
+                  <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none" />
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label>
@@ -241,6 +320,37 @@ export default function Inventory() {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Low Stock Alert At</label>
                   <input required type="number" min="0" value={formData.lowStockThreshold} onChange={e => setFormData({...formData, lowStockThreshold: e.target.value})} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none" />
                 </div>
+              </div>
+
+              <div className="pt-4 border-t border-gray-100 dark:border-gray-700">
+                <label className="flex items-center gap-2 cursor-pointer mb-4">
+                  <input 
+                    type="checkbox" 
+                    checked={formData.enableReminder} 
+                    onChange={e => setFormData({...formData, enableReminder: e.target.checked})}
+                    className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                  />
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">Enable Reminder</span>
+                </label>
+
+                {formData.enableReminder && (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Reminder Date</label>
+                        <input required type="date" value={formData.reminderDate} onChange={e => setFormData({...formData, reminderDate: e.target.value})} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Reminder Time</label>
+                        <input required type="time" value={formData.reminderTime} onChange={e => setFormData({...formData, reminderTime: e.target.value})} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none" />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Owner WhatsApp Number</label>
+                      <input required type="tel" placeholder="+91..." value={formData.ownerWhatsApp} onChange={e => setFormData({...formData, ownerWhatsApp: e.target.value})} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none" />
+                    </div>
+                  </div>
+                )}
               </div>
               
               {featureFields.length > 0 && (

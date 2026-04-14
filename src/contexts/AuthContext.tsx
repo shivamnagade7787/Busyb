@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { collection, query, where, getDocs, addDoc, onSnapshot, doc, setDoc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { onAuthStateChanged, User, signOut } from 'firebase/auth';
+import { db, auth } from '../lib/firebase';
 
 export interface Business {
   id: string;
@@ -24,7 +25,7 @@ export interface CustomFields {
 }
 
 interface AuthContextType {
-  user: any | null;
+  user: User | null;
   loading: boolean;
   activeBusiness: string;
   setActiveBusiness: (biz: string) => void;
@@ -44,17 +45,12 @@ interface AuthContextType {
   setLogoPlacement: (placement: string) => void;
   customFields: CustomFields;
   updateCustomFields: (feature: keyof CustomFields, fields: CustomField[]) => Promise<void>;
+  logout: () => Promise<void>;
 }
 
-const dummyUser = {
-  uid: 'default-local-user',
-  displayName: 'Business Owner',
-  email: 'owner@smartvyapaar.local',
-};
-
 const AuthContext = createContext<AuthContextType>({ 
-  user: dummyUser, 
-  loading: false,
+  user: null, 
+  loading: true,
   activeBusiness: 'Business 1',
   setActiveBusiness: () => {},
   businesses: [],
@@ -72,10 +68,13 @@ const AuthContext = createContext<AuthContextType>({
   logoPlacement: 'left',
   setLogoPlacement: () => {},
   customFields: { sales: [], purchases: [], inventory: [], parties: [], expenses: [] },
-  updateCustomFields: async () => {}
+  updateCustomFields: async () => {},
+  logout: async () => {}
 });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
   const [activeBusiness, setActiveBusinessState] = useState('Business 1');
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [upiId, setUpiIdState] = useState('');
@@ -89,16 +88,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
 
   useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+
     const savedBiz = localStorage.getItem('smartvyapaar_business');
     if (savedBiz) setActiveBusinessState(savedBiz);
 
     // Fetch businesses from Firestore
-    const q = query(collection(db, 'businesses'), where('userId', '==', dummyUser.uid));
+    const q = query(collection(db, 'businesses'), where('userId', '==', user.uid));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const bizData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Business));
       if (bizData.length === 0) {
         // Add default business if none exists
-        const defaultBiz = { name: 'Business 1', userId: dummyUser.uid };
+        const defaultBiz = { name: 'Business 1', userId: user.uid };
         addDoc(collection(db, 'businesses'), defaultBiz);
       } else {
         setBusinesses(bizData);
@@ -130,11 +139,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const savedPlacement = localStorage.getItem('smartvyapaar_placement');
     if (savedPlacement) setLogoPlacementState(savedPlacement);
-  }, []);
+
+    return () => unsubscribe();
+  }, [user]);
 
   useEffect(() => {
-    if (dummyUser && activeBusiness) {
-      const docRef = doc(db, 'businessSettings', `${dummyUser.uid}_${activeBusiness}`);
+    if (user && activeBusiness) {
+      const docRef = doc(db, 'businessSettings', `${user.uid}_${activeBusiness}`);
       const unsub = onSnapshot(docRef, (docSnap) => {
         if (docSnap.exists()) {
           const data = docSnap.data();
@@ -149,7 +160,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       return () => unsub();
     }
-  }, [activeBusiness]);
+  }, [user, activeBusiness]);
 
   const setActiveBusiness = (biz: string) => {
     setActiveBusinessState(biz);
@@ -191,10 +202,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const addBusiness = async (biz: Omit<Business, 'id'>) => {
+    if (!user) return;
     try {
       await addDoc(collection(db, 'businesses'), {
         ...biz,
-        userId: dummyUser.uid
+        userId: user.uid
       });
     } catch (error) {
       console.error("Error adding business: ", error);
@@ -202,7 +214,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const updateCustomFields = async (feature: keyof CustomFields, fields: CustomField[]) => {
-    const docRef = doc(db, 'businessSettings', `${dummyUser.uid}_${activeBusiness}`);
+    if (!user) return;
+    const docRef = doc(db, 'businessSettings', `${user.uid}_${activeBusiness}`);
     await setDoc(docRef, {
       customFields: {
         ...customFields,
@@ -211,10 +224,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }, { merge: true });
   };
 
+  const logout = async () => {
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error("Error signing out: ", error);
+    }
+  };
+
   return (
     <AuthContext.Provider value={{ 
-      user: dummyUser, 
-      loading: false, 
+      user, 
+      loading, 
       activeBusiness, 
       setActiveBusiness,
       businesses,
@@ -232,9 +253,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       logoPlacement,
       setLogoPlacement,
       customFields,
-      updateCustomFields
+      updateCustomFields,
+      logout
     }}>
-      {children}
+      {!loading && children}
     </AuthContext.Provider>
   );
 };

@@ -32,15 +32,17 @@ export default function Purchases() {
 
     const q = query(
       collection(db, 'purchases'),
-      where('userId', '==', user.uid),
-      where('businessName', '==', activeBusiness)
+      where('userId', '==', user.uid)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const purchasesData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+      const purchasesData = snapshot.docs
+        .map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }))
+        .filter((d: any) => (d.businessName || 'Business 1') === activeBusiness);
+        
       // Sort in memory since we don't have a composite index for date
       purchasesData.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
       setPurchases(purchasesData);
@@ -383,7 +385,7 @@ export default function Purchases() {
 
       <ConfirmModal
         isOpen={!!itemToDelete}
-        onClose={() => setItemToDelete(null)}
+        onCancel={() => setItemToDelete(null)}
         onConfirm={handleDelete}
         title="Delete Purchase"
         message="Are you sure you want to delete this purchase? This action cannot be undone."

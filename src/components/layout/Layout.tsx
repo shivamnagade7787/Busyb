@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, NavLink } from 'react-router-dom';
-import { Home, ShoppingCart, Users, Package, FileText, Wallet, Store, ChevronDown, Settings, X, Upload, Trash2, Receipt, Plus, Sun, Moon, Settings2 } from 'lucide-react';
+import { Home, ShoppingCart, Users, Package, FileText, Wallet, Store, ChevronDown, Settings, X, Upload, Trash2, Receipt, Plus, Sun, Moon, Settings2, BookOpen } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAuth, CustomFields } from '../../contexts/AuthContext';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import CustomizeFieldsModal from '../CustomizeFieldsModal';
+import ReminderService from '../ReminderService';
 
 export default function Layout() {
   const { 
@@ -150,6 +151,7 @@ export default function Layout() {
     { icon: Wallet, label: 'Expenses', path: '/expenses' },
     { icon: Package, label: 'Items', path: '/inventory' },
     { icon: Users, label: 'Parties', path: '/parties' },
+    { icon: BookOpen, label: 'Udhar (Credit)', path: '/credit' },
     { icon: FileText, label: 'Reports', path: '/reports' },
   ];
 
@@ -243,6 +245,14 @@ export default function Layout() {
                 >
                   {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
                   {isDarkMode ? 'Light Mode' : 'Dark Mode'}
+                </button>
+                <div className="h-px bg-gray-100 dark:bg-gray-700 my-1"></div>
+                <button 
+                  onClick={useAuth().logout} 
+                  className="w-full text-left px-4 py-2 rounded-lg text-sm hover:bg-red-50 dark:hover:bg-red-900/30 flex items-center gap-2 text-red-600 dark:text-red-400"
+                >
+                  <Store className="w-4 h-4" />
+                  Log Out
                 </button>
               </div>
             </div>
@@ -503,6 +513,7 @@ export default function Layout() {
         onClose={() => setIsCustomizeModalOpen(false)}
         feature={customizeFeature}
       />
+      <ReminderService />
     </div>
   );
 }
