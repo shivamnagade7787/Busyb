@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, NavLink } from 'react-router-dom';
-import { Home, ShoppingCart, Users, Package, FileText, Wallet, Store, ChevronDown, Settings, X, Upload, Trash2, Receipt, Plus, Sun, Moon, Settings2, BookOpen, Smartphone, Link2, Unlink } from 'lucide-react';
+import { Home, ShoppingCart, Users, Package, FileText, Wallet, Store, ChevronDown, Settings, X, Upload, Trash2, Receipt, Plus, Sun, Moon, Settings2, BookOpen, Smartphone, Link2, Unlink, Menu } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAuth, CustomFields } from '../../contexts/AuthContext';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
@@ -17,7 +17,7 @@ export default function Layout() {
     invoiceFont, setInvoiceFont,
     invoiceColor, setInvoiceColor,
     logoPlacement, setLogoPlacement,
-    linkedPhone, linkDevice, unlinkDevice
+    linkedPhone, myPhone, registerPhone, linkDevice, unlinkDevice
   } = useAuth();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isAddBusinessOpen, setIsAddBusinessOpen] = useState(false);
@@ -53,6 +53,8 @@ export default function Layout() {
   const [customizeFeature, setCustomizeFeature] = useState<keyof CustomFields>('sales');
   const [isDeviceLinkOpen, setIsDeviceLinkOpen] = useState(false);
   const [deviceLinkPhone, setDeviceLinkPhone] = useState('');
+  const [myPhoneInput, setMyPhoneInput] = useState('');
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     if (isSettingsOpen) {
@@ -197,14 +199,28 @@ export default function Layout() {
 
   return (
     <div className="flex h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 overflow-hidden">
+      {/* Mobile Sidebar Overlay */}
+      {isMobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className="flex flex-col w-[10vw] min-w-[48px] md:w-16 hover:w-[60vw] md:hover:w-64 group transition-all duration-300 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 z-50 h-full overflow-hidden shrink-0">
-        <div className="p-2 md:p-4 border-b border-gray-200 dark:border-gray-700 relative flex items-center justify-center md:justify-start">
+      <aside className={cn(
+        "fixed md:static inset-y-0 left-0 z-50 flex flex-col bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 h-full overflow-hidden shrink-0 transition-all duration-300",
+        isMobileMenuOpen ? "w-64 translate-x-0" : "w-64 -translate-x-full md:translate-x-0 md:w-16 md:hover:w-64 group"
+      )}>
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700 relative flex items-center justify-between md:justify-start">
           <div className="flex items-center gap-3 w-full relative">
-            <div className="w-8 h-8 md:w-10 md:h-10 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center shrink-0 mx-auto md:mx-0">
-              <Store className="w-4 h-4 md:w-6 md:h-6 text-blue-600 dark:text-blue-400" />
+            <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center shrink-0 mx-auto md:mx-0">
+              <Store className="w-6 h-6 text-blue-600 dark:text-blue-400" />
             </div>
-            <div className="overflow-hidden whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity flex-1 flex items-center justify-between w-0 group-hover:w-auto">
+            <div className={cn(
+              "overflow-hidden whitespace-nowrap transition-opacity flex-1 flex items-center justify-between",
+              isMobileMenuOpen ? "opacity-100 w-auto" : "opacity-0 md:group-hover:opacity-100 w-0 md:group-hover:w-auto"
+            )}>
               <div>
                 <h1 className="text-sm font-bold text-gray-900 dark:text-white truncate max-w-[120px]">{activeBusiness}</h1>
                 <p className="text-[10px] text-gray-500">Switch Business</p>
@@ -220,6 +236,7 @@ export default function Layout() {
                 } else {
                   setActiveBusiness(e.target.value);
                 }
+                setIsMobileMenuOpen(false);
               }}
               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
               title="Switch Business"
@@ -230,40 +247,53 @@ export default function Layout() {
               <option value="ADD_NEW">+ Add New Business</option>
             </select>
           </div>
+          {isMobileMenuOpen && (
+            <button onClick={() => setIsMobileMenuOpen(false)} className="md:hidden p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
+              <X className="w-5 h-5" />
+            </button>
+          )}
         </div>
-        <nav className="flex-1 p-2 md:p-4 space-y-2 overflow-y-auto overflow-x-hidden">
+        <nav className="flex-1 p-4 space-y-2 overflow-y-auto overflow-x-hidden">
           {navItems.map((item) => (
             <NavLink
               key={item.path}
               to={item.path}
+              onClick={() => setIsMobileMenuOpen(false)}
               className={({ isActive }) =>
                 cn(
-                  'flex items-center gap-3 p-2 md:p-3 rounded-lg transition-colors whitespace-nowrap overflow-hidden',
+                  'flex items-center gap-3 p-3 rounded-lg transition-colors whitespace-nowrap overflow-hidden',
                   isActive 
                     ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/50 dark:text-blue-400 font-medium' 
                     : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
                 )
               }
             >
-              <div className="flex items-center justify-center w-5 h-5 md:w-6 md:h-6 shrink-0 mx-auto md:mx-0">
-                <item.icon className="w-4 h-4 md:w-5 md:h-5" />
+              <div className="flex items-center justify-center w-6 h-6 shrink-0 mx-auto md:mx-0">
+                <item.icon className="w-5 h-5" />
               </div>
-              <span className="opacity-0 group-hover:opacity-100 transition-opacity text-sm">{item.label}</span>
+              <span className={cn(
+                "transition-opacity text-sm",
+                isMobileMenuOpen ? "opacity-100" : "opacity-0 md:group-hover:opacity-100"
+              )}>{item.label}</span>
             </NavLink>
           ))}
         </nav>
-        <div className="p-2 md:p-4 border-t border-gray-200 dark:border-gray-700">
+        <div className="p-4 border-t border-gray-200 dark:border-gray-700">
           <button
             onClick={() => {
               setTempUpi(upiId);
               setIsSettingsOpen(true);
+              setIsMobileMenuOpen(false);
             }}
-            className="flex items-center gap-3 p-2 md:p-3 w-full text-left text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700 rounded-lg transition-colors whitespace-nowrap overflow-hidden"
+            className="flex items-center gap-3 p-3 w-full text-left text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700 rounded-lg transition-colors whitespace-nowrap overflow-hidden"
           >
-            <div className="flex items-center justify-center w-5 h-5 md:w-6 md:h-6 shrink-0 mx-auto md:mx-0">
-              <Settings className="w-4 h-4 md:w-5 md:h-5" />
+            <div className="flex items-center justify-center w-6 h-6 shrink-0 mx-auto md:mx-0">
+              <Settings className="w-5 h-5" />
             </div>
-            <span className="opacity-0 group-hover:opacity-100 transition-opacity text-sm">Settings</span>
+            <span className={cn(
+              "transition-opacity text-sm",
+              isMobileMenuOpen ? "opacity-100" : "opacity-0 md:group-hover:opacity-100"
+            )}>Settings</span>
           </button>
         </div>
       </aside>
@@ -272,7 +302,15 @@ export default function Layout() {
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-gray-50 dark:bg-gray-900 relative">
         {/* Header */}
         <header className="h-16 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex items-center justify-between px-4 md:px-8 shrink-0">
-          <h1 className="text-xl font-bold text-blue-600 dark:text-blue-400">Welcome {activeBusiness}</h1>
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="md:hidden p-2 -ml-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+            >
+              <Menu className="w-6 h-6" />
+            </button>
+            <h1 className="text-xl font-bold text-blue-600 dark:text-blue-400 truncate max-w-[200px] sm:max-w-none">Welcome {activeBusiness}</h1>
+          </div>
           <div className="relative group/profile">
             <button className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold">
               {activeBusiness.charAt(0).toUpperCase()}
@@ -678,35 +716,82 @@ export default function Layout() {
                   </button>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Enter the phone number of the device you want to link. This will allow the other device to access your business data.
-                  </p>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Phone Number</label>
-                    <input
-                      type="tel"
-                      value={deviceLinkPhone}
-                      onChange={(e) => setDeviceLinkPhone(e.target.value)}
-                      placeholder="+91 9876543210"
-                      className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-white"
-                    />
+                <div className="space-y-6">
+                  {/* Register Phone Section */}
+                  <div className="space-y-4">
+                    <h3 className="font-medium text-gray-900 dark:text-white">1. Register This Device</h3>
+                    {myPhone ? (
+                      <div className="p-3 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-lg text-sm flex items-center gap-2">
+                        <Smartphone className="w-4 h-4" />
+                        Registered as: {myPhone}
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          Register your phone number so other devices can link to this account.
+                        </p>
+                        <div className="flex gap-2">
+                          <input
+                            type="tel"
+                            value={myPhoneInput}
+                            onChange={(e) => setMyPhoneInput(e.target.value)}
+                            placeholder="Your Phone Number"
+                            className="flex-1 px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-white"
+                          />
+                          <button
+                            onClick={async () => {
+                              if (myPhoneInput.trim()) {
+                                try {
+                                  await registerPhone(myPhoneInput);
+                                } catch (error) {
+                                  alert("Failed to register phone number.");
+                                }
+                              }
+                            }}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors whitespace-nowrap"
+                          >
+                            Register
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
-                  <button
-                    onClick={() => {
-                      if (deviceLinkPhone.trim()) {
-                        // In a real app, you would verify the phone number or send an OTP
-                        // For now, we'll just link it directly using a mock UID
-                        linkDevice(deviceLinkPhone, `linked_${deviceLinkPhone}`);
-                        setIsDeviceLinkOpen(false);
-                        setDeviceLinkPhone('');
-                      }
-                    }}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    <Link2 className="w-5 h-5" />
-                    Link Device
-                  </button>
+
+                  <div className="border-t border-gray-100 dark:border-gray-700"></div>
+
+                  {/* Link Device Section */}
+                  <div className="space-y-4">
+                    <h3 className="font-medium text-gray-900 dark:text-white">2. Link to Another Device</h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Enter the phone number of the device you want to link to.
+                    </p>
+                    <div>
+                      <input
+                        type="tel"
+                        value={deviceLinkPhone}
+                        onChange={(e) => setDeviceLinkPhone(e.target.value)}
+                        placeholder="Target Phone Number"
+                        className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-white"
+                      />
+                    </div>
+                    <button
+                      onClick={async () => {
+                        if (deviceLinkPhone.trim()) {
+                          try {
+                            await linkDevice(deviceLinkPhone);
+                            setIsDeviceLinkOpen(false);
+                            setDeviceLinkPhone('');
+                          } catch (error) {
+                            alert("Phone number not found. Make sure it is registered on the other device.");
+                          }
+                        }
+                      }}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      <Link2 className="w-5 h-5" />
+                      Link Device
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

@@ -50,7 +50,9 @@ interface AuthContextType {
   logout: () => Promise<void>;
   uid: string;
   linkedPhone: string | null;
-  linkDevice: (phone: string, targetUid: string) => void;
+  myPhone: string | null;
+  registerPhone: (phone: string) => Promise<void>;
+  linkDevice: (phone: string) => Promise<void>;
   unlinkDevice: () => void;
 }
 
@@ -79,7 +81,8 @@ const AuthContext = createContext<AuthContextType>({
   updateCustomFields: async () => {},
   logout: async () => {},
   uid: '',
-  linkedPhone: null,
+  myPhone: null,
+  registerPhone: async () => {},
   linkDevice: () => {},
   unlinkDevice: () => {}
 });
@@ -100,6 +103,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
   const [linkedUid, setLinkedUid] = useState<string | null>(localStorage.getItem('smartvyapaar_linked_uid'));
   const [linkedPhone, setLinkedPhone] = useState<string | null>(localStorage.getItem('smartvyapaar_linked_phone'));
+  const [myPhone, setMyPhone] = useState<string | null>(localStorage.getItem('smartvyapaar_my_phone'));
 
   const uid = linkedUid || (user ? user.uid : '');
 
@@ -275,11 +279,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }, { merge: true });
   };
 
-  const linkDevice = (phone: string, targetUid: string) => {
-    setLinkedUid(targetUid);
-    setLinkedPhone(phone);
-    localStorage.setItem('smartvyapaar_linked_uid', targetUid);
-    localStorage.setItem('smartvyapaar_linked_phone', phone);
+  const registerPhone = async (phone: string) => {
+    if (!user) return;
+    try {
+      await setDoc(doc(db, 'phone_links', phone), {
+        uid: user.uid,
+        createdAt: new Date().toISOString()
+      });
+      setMyPhone(phone);
+      localStorage.setItem('smartvyapaar_my_phone', phone);
+    } catch (error) {
+      console.error("Error registering phone:", error);
+      throw error;
+    }
+  };
+
+  const linkDevice = async (phone: string) => {
+    try {
+      const docSnap = await getDocs(query(collection(db, 'phone_links'), where('__name__', '==', phone)));
+      if (!docSnap.empty) {
+        const targetUid = docSnap.docs[0].data().uid;
+        setLinkedUid(targetUid);
+        setLinkedPhone(phone);
+        localStorage.setItem('smartvyapaar_linked_uid', targetUid);
+        localStorage.setItem('smartvyapaar_linked_phone', phone);
+      } else {
+        throw new Error("Phone number not found");
+      }
+    } catch (error) {
+      console.error("Error linking device:", error);
+      throw error;
+    }
   };
 
   const unlinkDevice = () => {
@@ -322,7 +352,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLogoPlacement,
       customFields,
       updateCustomFields,
-      logout
+      logout,
+      uid,
+      linkedPhone,
+      myPhone,
+      registerPhone,
+      linkDevice,
+      unlinkDevice
     }}>
       {!loading && children}
     </AuthContext.Provider>
